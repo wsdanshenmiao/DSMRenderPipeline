@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 
 namespace DSM
 {
-    public class CameraRender
+    public partial class CameraRender
     {
         private ScriptableRenderContext m_RenderContext;    // 类似命令队列
         private Camera m_RenderCamera;
@@ -14,18 +14,12 @@ namespace DSM
         private CullingResults m_CullingResults;
         
         static private ShaderTagId m_UnlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
-        static ShaderTagId[] m_LegacyShaderTagIds = {
-            new ShaderTagId("Always"),
-            new ShaderTagId("ForwardBase"),
-            new ShaderTagId("PrepassBase"),
-            new ShaderTagId("Vertex"),
-            new ShaderTagId("VertexLMRGBM"),
-            new ShaderTagId("VertexLM")
-        };
-
-        static private Material m_ErrorMaterial;
         
-        public void Render(ScriptableRenderContext context, Camera camera)
+        public void Render(
+            ScriptableRenderContext context, 
+            Camera camera, 
+            bool useDynamicBatching, 
+            bool useGPUInstancing)
         {
             if (context == null || camera == null) {
                 Debug.LogError("Context or Camera should no be null");
@@ -35,14 +29,18 @@ namespace DSM
             m_RenderContext = context;
             m_RenderCamera = camera;
 
+            // 可能会增加场景物体，在剔除前进行
+            PrepareBuffer();
+            PrepareForSceneWindow();
             if (!Cull()) return;
             
             Debug.Log("Render Camera");
 
             Setup();
             
-            DrawVisibleGeometry();
+            DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
+            DrawGizmos();
 
             Submit();
         }
@@ -68,14 +66,18 @@ namespace DSM
         {
             // 提前设置相机的属性
             m_RenderContext.SetupCameraProperties(m_RenderCamera);
-            m_CommandBuffer.ClearRenderTarget(true, true, Color.clear, 1.0f);
+            CameraClearFlags flags = m_RenderCamera.clearFlags;
+            m_CommandBuffer.ClearRenderTarget(
+                flags <= CameraClearFlags.Depth, 
+                flags == CameraClearFlags.Color, 
+                flags == CameraClearFlags.Color ? m_RenderCamera.backgroundColor.linear : Color.clear);
             // 加入分析器样本，方便调试的时候定位
-            m_CommandBuffer.BeginSample(m_BufferName);
+            m_CommandBuffer.BeginSample(m_SampleName);
             ExecuteBuffer();
         }
         
-        // 绘制天空盒
-        private void DrawVisibleGeometry()
+        // 绘制可见的几何体，可选择优化绘制策略
+        private void DrawVisibleGeometry(bool useDynamicBatching, bool useGPUInstancing)
         {
             //Debug.Log("Draw Visible Geometry");
             
@@ -84,7 +86,11 @@ namespace DSM
             SortingSettings sortingSettings = new SortingSettings(m_RenderCamera) {
                 criteria = SortingCriteria.CommonOpaque // 按不透明体的顺序排序
             };
-            DrawingSettings drawingSettings = new DrawingSettings(m_UnlitShaderTagId, sortingSettings);
+            DrawingSettings drawingSettings = new DrawingSettings(m_UnlitShaderTagId, sortingSettings)
+            {
+                enableInstancing = useGPUInstancing,
+                enableDynamicBatching = useDynamicBatching
+            };
             // 先绘制不透明体
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
             m_RenderContext.DrawRenderers(m_CullingResults, ref drawingSettings, ref filteringSettings);
@@ -97,35 +103,13 @@ namespace DSM
             filteringSettings.renderQueueRange = RenderQueueRange.transparent;
             m_RenderContext.DrawRenderers(m_CullingResults, ref drawingSettings, ref filteringSettings);
         }
-
-        /// <summary>
-        /// 绘制不支持的Shader
-        /// </summary>
-        private void DrawUnsupportedShaders()
-        {
-            //Debug.Log("DrawUnsupportedShaders");
-            if (m_ErrorMaterial == null) {
-                m_ErrorMaterial = new Material(Shader.Find("Hidden/InternalErrorShader"));
-            }
-            
-            var drawingSettings  = new DrawingSettings(
-                m_LegacyShaderTagIds[0], new SortingSettings(m_RenderCamera)) {
-                overrideMaterial = m_ErrorMaterial  // 设置不支持的材质样式
-            };
-            var filteringSettings = FilteringSettings.defaultValue;
-            // 设置多个Pass
-            for (int i = 1; i < m_LegacyShaderTagIds.Length; ++i) {
-                drawingSettings.SetShaderPassName(i, m_LegacyShaderTagIds[i]);
-            }
-            m_RenderContext.DrawRenderers(m_CullingResults, ref drawingSettings, ref filteringSettings);
-        }
         
         /// <summary>
         /// 提交渲染命令
         /// </summary>
         private void Submit()
         {
-            m_CommandBuffer.EndSample(m_BufferName);
+            m_CommandBuffer.EndSample(m_SampleName);
             ExecuteBuffer();
             m_RenderContext.Submit();
         }
