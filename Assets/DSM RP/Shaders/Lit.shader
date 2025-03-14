@@ -14,6 +14,11 @@ Shader "DSM RP/Lit"
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         // 是否开启 Alpha 测试
 		[Toggle(_CLIPPING)] _Clipping ("Alpha Clipping", Float) = 0
+  		[Toggle(_PREMULTIPLY_ALPHA)] _PremulAlpha ("Premultiply Alpha", Float) = 0
+        // 材质金属性
+        _Metallic ("Metallic", Range(0, 1)) = 0
+        // 材质光滑程度
+        _Smoothness ("Smoothness", Range(0, 1)) = 0.5
     }
     SubShader
     {
@@ -27,10 +32,14 @@ Shader "DSM RP/Lit"
             HLSLPROGRAM
             #pragma multi_compile_instancing
             #pragma shader_feature _CLIPPING
+        	#pragma shader_feature _PREMULTIPLY_ALPHA    
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
+            #pragma target 3.5
             #include "LitPass.hlsl"
             ENDHLSL
         }
     }
+    // 自定义材质的GUI
+    CustomEditor "DSMShaderGUI"
 }

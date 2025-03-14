@@ -248,8 +248,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0d4875d2a5e54e3a93cfa8c1aad255fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
-  m_Cutoff: 0.5
+  m_BaseColor: {r: 1, g: 1, b: 1, a: 1}
+  m_Cutoff: 0.6
+  m_Metallic: 0.233
+  m_Smoothness: 0.265
 --- !u!135 &184419675
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -462,6 +464,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &716654131
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -578,7 +582,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
-  m_Material: {fileID: 2100000, guid: 181781b210a4ca7419fa2575f25b5147, type: 2}
+  m_Material: {fileID: 2100000, guid: 3c9084090014bc546bc3ec07ed79d3c9, type: 2}
 --- !u!4 &744446606
 Transform:
   m_ObjectHideFlags: 0
@@ -628,6 +632,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &866529160
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -748,6 +754,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &878942966
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -868,6 +876,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1131422505
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -988,6 +998,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1188164485
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1108,6 +1120,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.32156864, g: 0.3711709, b: 0.57254905, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1233621163
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1228,6 +1242,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.32156864, g: 0.3711709, b: 0.57254905, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1629165401
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1348,6 +1364,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.57232696, g: 0.32215884, b: 0.32215884, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1766614584
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1468,6 +1486,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.32156864, g: 0.3711709, b: 0.57254905, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &1905087373
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1588,6 +1608,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_BaseColor: {r: 0.735849, g: 0.13189739, b: 0.13189739, a: 1}
   m_Cutoff: 0.5
+  m_Metallic: 0
+  m_Smoothness: 0.5
 --- !u!135 &2143942051
 SphereCollider:
   m_ObjectHideFlags: 0

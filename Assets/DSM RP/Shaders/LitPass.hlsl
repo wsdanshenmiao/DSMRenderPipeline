@@ -9,6 +9,8 @@ UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
     UNITY_DEFINE_INSTANCED_PROP(float4, _BaseTex_ST)
     UNITY_DEFINE_INSTANCED_PROP(float4, _BaseColor)
     UNITY_DEFINE_INSTANCED_PROP(float, _Cutoff)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Metallic)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Smoothness)
 UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
 
 TEXTURE2D(_BaseTex);
@@ -25,6 +27,7 @@ struct Attributes
 struct Varyings
 {
     float4 posCS : SV_POSITION;
+    float3 posWS : TEXCOORD1;
     float3 normalWS : NORMAL;
     float2 uv : TEXCOORD0;
     UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -38,8 +41,8 @@ Varyings LitPassVertex(Attributes i)
     UNITY_TRANSFER_INSTANCE_ID(i, o);
     
     float4 texST = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _BaseTex_ST);
-    float3 posWS = TransformObjectToWorld(i.posOS);
-    o.posCS = TransformWorldToHClip(posWS);
+    o.posWS = TransformObjectToWorld(i.posOS);
+    o.posCS = TransformWorldToHClip(o.posWS);
     o.normalWS = TransformObjectToWorldNormal(i.normalOS);
     o.uv = i.uv * texST.xy + texST.zw;
     
@@ -59,12 +62,22 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
     clip(col.a - UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Cutoff));
     #endif
 
+    // 获取物体的表面属性
     Surface surface;
     surface.normal = normalize(i.normalWS);
     surface.color = col.rgb;
     surface.alpha = col.a;
+    surface.metallic = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Metallic);
+    surface.smoothness = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Smoothness);
+    surface.viewDirection = normalize(_WorldSpaceCameraPos - i.posWS);
 
-    col.rgb = GetLighting(surface);
+#if defined(_PREMULTIPLY_ALPHA)
+    BRDF brdf = GetBRDF(surface, true);
+#else
+    BRDF brdf = GetBRDF(surface);
+#endif
+
+    col.rgb = GetLighting(surface, brdf);
     
     return float4(col.rgb, surface.alpha);
 }
