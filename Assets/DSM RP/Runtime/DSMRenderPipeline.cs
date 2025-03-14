@@ -17,6 +17,7 @@ namespace DSM
             m_UseDynamicBatching = useDynamicBatching;
             m_UseGPUInstancing = useGPUInstancing;
             GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBatcher;
+            GraphicsSettings.lightsUseLinearIntensity = true;
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)

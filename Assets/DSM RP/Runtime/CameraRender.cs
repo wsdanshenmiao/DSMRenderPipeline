@@ -13,7 +13,12 @@ namespace DSM
         
         private CullingResults m_CullingResults;
         
-        static private ShaderTagId m_UnlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
+        private Lighting m_Light = new Lighting();
+        
+        
+        static private ShaderTagId 
+            m_UnlitShaderTagId = new ShaderTagId("SRPDefaultUnlit"),
+            m_LitShaderTagId = new ShaderTagId("DSMLit");
         
         public void Render(
             ScriptableRenderContext context, 
@@ -37,6 +42,7 @@ namespace DSM
             Debug.Log("Render Camera");
 
             Setup();
+            m_Light.Setup(context, m_CullingResults);
             
             DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
@@ -91,6 +97,7 @@ namespace DSM
                 enableInstancing = useGPUInstancing,
                 enableDynamicBatching = useDynamicBatching
             };
+            drawingSettings.SetShaderPassName(1, m_LitShaderTagId);
             // 先绘制不透明体
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
             m_RenderContext.DrawRenderers(m_CullingResults, ref drawingSettings, ref filteringSettings);

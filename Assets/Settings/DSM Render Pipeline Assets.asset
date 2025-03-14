@@ -12,3 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1244a715bae1ed41ab4011487faa835, type: 3}
   m_Name: DSM Render Pipeline Assets
   m_EditorClassIdentifier: 
+  m_UseDynamicBatching: 0
+  m_UseGPUInstancing: 1
+  m_UseSRPBatcher: 1
