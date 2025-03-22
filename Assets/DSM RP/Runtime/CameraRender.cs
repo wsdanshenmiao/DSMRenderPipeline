@@ -24,7 +24,8 @@ namespace DSM
             ScriptableRenderContext context, 
             Camera camera, 
             bool useDynamicBatching, 
-            bool useGPUInstancing)
+            bool useGPUInstancing,
+            ShadowSetting shadowSetting)
         {
             if (context == null || camera == null) {
                 Debug.LogError("Context or Camera should no be null");
@@ -37,17 +38,21 @@ namespace DSM
             // 可能会增加场景物体，在剔除前进行
             PrepareBuffer();
             PrepareForSceneWindow();
-            if (!Cull()) return;
+            if (!Cull(shadowSetting.maxDistance)) return;
             
             Debug.Log("Render Camera");
 
+            m_CommandBuffer.BeginSample(m_SampleName);
+            ExecuteBuffer();
+            m_Light.Setup(context, m_CullingResults, shadowSetting);
+            m_CommandBuffer.EndSample(m_SampleName);
             Setup();
-            m_Light.Setup(context, m_CullingResults);
             
             DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
             DrawGizmos();
 
+            m_Light.CleanUp();
             Submit();
         }
         
@@ -55,9 +60,10 @@ namespace DSM
         /// 获取剔除信息
         /// </summary>
         /// <returns></returns>
-        private bool Cull()
+        private bool Cull(float maxShadowDistance)
         {
             if (m_RenderCamera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters)) {
+                cullingParameters.shadowDistance = Mathf.Min(m_RenderCamera.farClipPlane, maxShadowDistance);
                 m_CullingResults = m_RenderContext.Cull(ref cullingParameters);
                 return true;
             }

@@ -39,6 +39,22 @@ Shader "DSM RP/Lit"
             #include "LitPass.hlsl"
             ENDHLSL
         }
+
+        Pass
+        {
+            Tags {"LightMode" = "ShadowCaster"}
+            
+            // 禁止颜色写入
+            ColorMask 0
+            
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma shader_feature _CLIPPING
+            #pragma vertex ShadowCasterPassVertex
+            #pragma fragment ShadowCasterPassFragment
+            #include "ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
     }
     // 自定义材质的GUI
     CustomEditor "DSMShaderGUI"

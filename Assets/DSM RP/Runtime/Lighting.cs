@@ -10,6 +10,8 @@ namespace DSM
         private CommandBuffer m_CommandBuffer = new CommandBuffer(){ name = m_BufferName };
         private CullingResults m_CullingResults;
         private const int m_MaxDirLightCount = 3;
+        
+        Shadows m_Shadows = new Shadows();
 
         static private int
             m_DirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),
@@ -19,17 +21,27 @@ namespace DSM
             m_DirLightColors = new Vector4[m_MaxDirLightCount],
             m_DirLightDirections = new Vector4[m_MaxDirLightCount];
 
-        public void Setup(ScriptableRenderContext context, CullingResults cullingResults)
+        public void Setup(
+            ScriptableRenderContext context, 
+            CullingResults cullingResults,
+            ShadowSetting shadowSetting)
         {
             m_CullingResults = cullingResults;
             
             m_CommandBuffer.BeginSample(m_BufferName);
             
+            m_Shadows.Setup(context, cullingResults, shadowSetting);
             SetupLights();
+            m_Shadows.Render();
             
             m_CommandBuffer.EndSample(m_BufferName);
             context.ExecuteCommandBuffer(m_CommandBuffer);
             m_CommandBuffer.Clear();
+        }
+
+        public void CleanUp()
+        {
+            m_Shadows.CleanUp();
         }
 
         private void SetupLights()
@@ -50,8 +62,7 @@ namespace DSM
         {
             m_DirLightColors[index] = light.finalColor;
             m_DirLightDirections[index] = -light.localToWorldMatrix.GetColumn(2);
-            
-            
+            m_Shadows.ReserveDirectionalShadows(light.light, index);
         }
     }
 }
