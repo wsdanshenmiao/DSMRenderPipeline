@@ -20,8 +20,9 @@ struct Light
 DirectionalShadowData GetDirectionalShadowData(int index, ShadowData shadowData)
 {
     DirectionalShadowData data;
-    data.strength = _DirectionalLightShadowData[index].x;
+    data.strength = _DirectionalLightShadowData[index].x * shadowData.strength;
     data.tileindex = _DirectionalLightShadowData[index].y + shadowData.cascadeIndex;
+    data.normalBias = _DirectionalLightShadowData[index].z;
     return data;
 }
 
@@ -36,7 +37,7 @@ Light GetDirectionalLight(int index, Surface surface, ShadowData shadowData)
     light.color = _DirectionalLightColors[index].rgb;
     light.direction = _DirectionalLightDirections[index].xyz;
     DirectionalShadowData data = GetDirectionalShadowData(index, shadowData);
-    light.attenuation = GetDirectionalShadowAttenuation(data, surface);
+    light.attenuation = GetDirectionalShadowAttenuation(data, shadowData, surface);
     return light;
 }
 

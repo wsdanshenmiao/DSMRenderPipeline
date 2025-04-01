@@ -12,6 +12,8 @@ namespace DSM
         struct ShadowedDirectionalLight
         {
             public int m_VisibleLightIndex;
+            public float m_SlopeScaleBias;
+            public float m_NearPlaneOffset;
         }
         
         private const string m_BufferName = "Shadows";
@@ -33,13 +35,16 @@ namespace DSM
             m_DirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas"),
             m_DirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices"),
             m_CascadeCountId = Shader.PropertyToID("_CascadeCount"),
-            m_CascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres");
+            m_CascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
+            m_ShadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade"),
+            m_CascadeDataId = Shader.PropertyToID("_CascadeData");
         
         private static Matrix4x4[] m_DirShadowMatrices = 
             new Matrix4x4[m_MaxShadowedDirectionalLightCount * m_MaxCascades];
 
         private static Vector4[] m_CascadeCullingSpheres = new Vector4[m_MaxCascades];
 
+        private static Vector4[] m_CascadeData = new Vector4[m_MaxCascades];
 
         public void Setup(
             ScriptableRenderContext renderContext,
@@ -52,19 +57,24 @@ namespace DSM
             m_ShadowedDirectionalLightCount = 0;
         }
 
-        public Vector2 ReserveDirectionalShadows(Light light, int visibleLightIndex)
+        public Vector3 ReserveDirectionalShadows(Light light, int visibleLightIndex)
         {
             // 当该光源不需要阴影 或 阴影强度为0 或 光源超出范围时不生成阴影
             if (m_ShadowedDirectionalLightCount < m_MaxShadowedDirectionalLightCount &&
                 light.shadows != LightShadows.None && light.shadowStrength > 0 &&
                 m_CullingResults.GetShadowCasterBounds(visibleLightIndex, out Bounds b)) {
                 m_ShadowedDirectionalLights[m_ShadowedDirectionalLightCount] =
-                    new ShadowedDirectionalLight{m_VisibleLightIndex = visibleLightIndex};
-                return new Vector2(light.shadowStrength, 
-                    m_ShadowSetting.m_Directional.m_CascadeCount * m_ShadowedDirectionalLightCount++);
+                    new ShadowedDirectionalLight {
+                        m_VisibleLightIndex = visibleLightIndex,
+                        m_SlopeScaleBias = light.shadowBias,
+                        m_NearPlaneOffset = light.shadowNearPlane
+                    };
+                return new Vector3(light.shadowStrength, 
+                    m_ShadowSetting.m_Directional.m_CascadeCount * m_ShadowedDirectionalLightCount++,
+                    light.shadowNormalBias);
             }
 
-            return Vector2.zero;
+            return Vector3.zero;
         }
 
         public void Render()
@@ -102,7 +112,14 @@ namespace DSM
                 RenderDirectionalShadows(i, split, tileSize);
             }
  
+            // 提前进行除法提高效率
+            float cascadeFade = 1 - m_ShadowSetting.m_Directional.m_CascadeFade;
+            m_CommandBuffer.SetGlobalVector(m_ShadowDistanceFadeId, 
+                new Vector4(1.0f / m_ShadowSetting.m_MaxDistance, 
+                    1.0f / m_ShadowSetting.m_DistanceFade,
+                    1.0f / (1- cascadeFade * cascadeFade)));
             m_CommandBuffer.SetGlobalInt(m_CascadeCountId, m_ShadowSetting.m_Directional.m_CascadeCount);
+            m_CommandBuffer.SetGlobalVectorArray(m_CascadeDataId, m_CascadeData);
             m_CommandBuffer.SetGlobalVectorArray(m_CascadeCullingSpheresId, m_CascadeCullingSpheres);
             m_CommandBuffer.SetGlobalMatrixArray(m_DirShadowMatricesId, m_DirShadowMatrices);
             
@@ -139,16 +156,13 @@ namespace DSM
 
             for (int i = 0; i < cascadeCount; i++) {
                 m_CullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
-                    light.m_VisibleLightIndex, i, cascadeCount, ratios, tileSize, 0f,
+                    light.m_VisibleLightIndex, i, cascadeCount, ratios, tileSize, light.m_NearPlaneOffset,
                     out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
                     out ShadowSplitData splitData);
                 // 阴影分割的剔除信息
                 shadowDrawingSettings.splitData = splitData;
                 if (index == 0) {   // 获取级联的剔除球体
-                    var cullingSphere = splitData.cullingSphere;
-                    // 计算剔除球的平方半径，用于在着色器中判度面片是否在球中
-                    cullingSphere.w *= cullingSphere.w;
-                    m_CascadeCullingSpheres[i] = cullingSphere;
+                    SetCascadeData(i, splitData.cullingSphere, tileSize);
                 }
                 int tileIndex = tileOffset + i;
                 Vector2 offset = SetTileViewport(tileIndex, split, tileSize);
@@ -156,9 +170,22 @@ namespace DSM
                 m_DirShadowMatrices[tileIndex] = ConvertToAtlasMatrix(viewProj, offset, split);
                 m_CommandBuffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
                 
+                // 设定深度偏差
+                m_CommandBuffer.SetGlobalDepthBias(0, light.m_SlopeScaleBias);
                 ExecuteBuffer();
                 m_RenderContext.DrawShadows(ref shadowDrawingSettings);
+                m_CommandBuffer.SetGlobalDepthBias(0, 0);
             }
+        }
+
+        private void SetCascadeData(int index, Vector4 cullingSphere, float tileSize)
+        {
+            // 计算阴影贴图纹素的大小,同时考虑斜对角的情况
+            float texelSize = 2 * cullingSphere.w / tileSize * 1.4142136f;
+            // 计算剔除球的平方半径，用于在着色器中判度面片是否在球中
+            cullingSphere.w *= cullingSphere.w;
+            m_CascadeData[index] = new Vector4(1 / cullingSphere.w, texelSize, 0.0f);
+            m_CascadeCullingSpheres[index] = cullingSphere;
         }
 
         private Vector2 SetTileViewport(int index, int split, int tileSize)

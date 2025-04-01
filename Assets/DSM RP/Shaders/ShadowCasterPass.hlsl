@@ -38,6 +38,15 @@ Varyings ShadowCasterPassVertex(Attributes i)
     float3 posWS = TransformObjectToWorld(i.posOS);
     o.posCS = TransformWorldToHClip(posWS);
     o.uv = i.uv * texST.xy + texST.zw;
+
+    // 避免由于近平面过于靠前而导致阴影裁剪
+    #if UNITY_REVERSED_Z
+    o.posCS.z =
+        min(o.posCS.z, o.posCS.w * UNITY_NEAR_CLIP_VALUE);
+    #else
+    o.posCS.z =
+        max(o.posCS.z, o.posCS.w * UNITY_NEAR_CLIP_VALUE);
+    #endif
     
     return o;
 }

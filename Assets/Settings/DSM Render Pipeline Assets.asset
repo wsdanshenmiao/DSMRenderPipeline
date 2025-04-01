@@ -16,7 +16,7 @@ MonoBehaviour:
   m_UseGPUInstancing: 1
   m_UseSRPBatcher: 1
   m_ShadowSetting:
-    m_MaxDistance: 100
+    m_MaxDistance: 50
     m_Directional:
       m_AtlasSize: 1024
       m_CascadeCount: 4
