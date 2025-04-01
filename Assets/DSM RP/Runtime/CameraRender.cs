@@ -38,7 +38,7 @@ namespace DSM
             // 可能会增加场景物体，在剔除前进行
             PrepareBuffer();
             PrepareForSceneWindow();
-            if (!Cull(shadowSetting.maxDistance)) return;
+            if (!Cull(shadowSetting.m_MaxDistance)) return;
             
             Debug.Log("Render Camera");
 

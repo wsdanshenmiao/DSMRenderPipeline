@@ -4,6 +4,7 @@
 // 物体的表面属性
 struct Surface
 {
+    float3 position;
     float3 normal;
     float alpha;
     float3 color;

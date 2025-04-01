@@ -2,6 +2,8 @@
 #define __LITPASS__HLSL__
 
 #include "../ShaderLibrary/Common.hlsl"
+#include "../ShaderLibrary/Surface.hlsl"
+#include "../ShaderLibrary/Shadows.hlsl"
 #include "../ShaderLibrary/Lighting.hlsl"
 
 
@@ -64,6 +66,7 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
 
     // 获取物体的表面属性
     Surface surface;
+    surface.position = i.posWS;
     surface.normal = normalize(i.normalWS);
     surface.color = col.rgb;
     surface.alpha = col.a;

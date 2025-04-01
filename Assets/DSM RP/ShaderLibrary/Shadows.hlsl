@@ -1,0 +1,63 @@
+#ifndef __SHADOWS__HLSL__
+#define __SHADOWS__HLSL__
+
+#define MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT 4
+#define MAX_CASCADE_COUNT 4
+
+// 阴影数据
+struct DirectionalShadowData
+{
+    float strength;
+    float tileindex;
+};
+
+struct ShadowData
+{
+    int cascadeIndex;
+};
+
+// Shadowmap
+TEXTURE2D_SHADOW(_DirectionalShadowAtlas);
+// 比较采样器，和DX中的 SamplerComparisonState
+#define SHADOW_SAMPLER sampler_linear_clamp_compare
+SAMPLER_CMP(SHADOW_SAMPLER);
+
+CBUFFER_START(_CustomShadows)
+    int _CascadeCount;
+    float4 _CascadeCullingSpheres[MAX_CASCADE_COUNT];
+    float4x4 _DirectionalShadowMatrices[MAX_SHADOWED_DIRECTIONAL_LIGHT_COUNT * MAX_CASCADE_COUNT];
+CBUFFER_END
+
+float SampleDirectionalShadowAtlas(float3 posSTS)
+{
+   return SAMPLE_TEXTURE2D_SHADOW(_DirectionalShadowAtlas, SHADOW_SAMPLER, posSTS);
+}
+
+float GetDirectionalShadowAttenuation(DirectionalShadowData data, Surface surface)
+{
+    if (data.strength <= 0) {
+        return 1;
+    }
+    // 从世界坐标变换到
+    float3 posSTS = mul(_DirectionalShadowMatrices[data.tileindex], float4(surface.position, 1)).xyz;
+    float shadow = SampleDirectionalShadowAtlas(posSTS);
+    return lerp(1, shadow, data.strength);
+}
+
+ShadowData GetShadowData(Surface surfaceWS)
+{
+    ShadowData shadowData;
+    // 寻找包含片元的剔除球
+    int i;
+    for (i = 0; i < _CascadeCount; i++) {
+        float4 sphere = _CascadeCullingSpheres[i];
+        float distanceSqr = DistanceSquared(surfaceWS.position, sphere.xyz);
+        if (distanceSqr < sphere.w) {
+            break;
+        }
+    }
+    shadowData.cascadeIndex = i;
+    return shadowData;
+}
+
+#endif

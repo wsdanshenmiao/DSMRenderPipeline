@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace DSM
 {
@@ -23,11 +24,22 @@ namespace DSM
         [Serializable]
         public struct Directional
         {
-            public MapSize atlasSize;
+            public MapSize m_AtlasSize;
+            [Range(0, 4)] public int m_CascadeCount;
+            [Range(0, 1)] public float m_CascadeRatio1, m_CascadeRatio2, m_CascadeRatio3;
+            public Vector3 m_CascadeRatios =>
+                new Vector3(m_CascadeRatio1, m_CascadeRatio2, m_CascadeRatio3);
         }
 
-        [Min(0)] public float maxDistance = 100;
-        public Directional directional = new Directional { atlasSize = MapSize._1024 };
+        [Min(0)] public float m_MaxDistance = 100;
+        public Directional m_Directional = new Directional
+        {
+            m_AtlasSize = MapSize._1024,
+            m_CascadeCount = 4,
+            m_CascadeRatio1 = 0.1f,
+            m_CascadeRatio2 = 0.25f,
+            m_CascadeRatio3 = 0.5f,
+        };
 
     }
 }
