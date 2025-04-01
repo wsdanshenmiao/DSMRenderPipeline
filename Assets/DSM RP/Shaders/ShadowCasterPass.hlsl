@@ -58,8 +58,11 @@ void ShadowCasterPassFragment(Varyings i)
     float4 baseColor = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _BaseColor);
     float4 base = baseTex * baseColor;
     // 为保证阴影正确需要加上剔除
-    #if defined(_CLIPPING)
+    #if defined(_SHADOWS_CLIP)
     clip(base.a - UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Cutoff));
+    #elif defined(_SHADOWS_DITHER)  // 使用抖动代替剔除
+    float dither = InterleavedGradientNoise(i.posCS.xy, 0);
+    clip(base.a - dither);
     #endif
 }
 

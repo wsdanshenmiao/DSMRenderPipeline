@@ -30,6 +30,7 @@ namespace DSM
         // 可生成阴影的光源的索引
         private ShadowedDirectionalLight[] m_ShadowedDirectionalLights = 
                 new ShadowedDirectionalLight[m_MaxShadowedDirectionalLightCount];
+        
 
         private static int
             m_DirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas"),
@@ -37,7 +38,8 @@ namespace DSM
             m_CascadeCountId = Shader.PropertyToID("_CascadeCount"),
             m_CascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
             m_ShadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade"),
-            m_CascadeDataId = Shader.PropertyToID("_CascadeData");
+            m_CascadeDataId = Shader.PropertyToID("_CascadeData"),
+            m_ShadowAtlasSizeId = Shader.PropertyToID("_ShadowAtlasSize");
         
         private static Matrix4x4[] m_DirShadowMatrices = 
             new Matrix4x4[m_MaxShadowedDirectionalLightCount * m_MaxCascades];
@@ -45,6 +47,16 @@ namespace DSM
         private static Vector4[] m_CascadeCullingSpheres = new Vector4[m_MaxCascades];
 
         private static Vector4[] m_CascadeData = new Vector4[m_MaxCascades];
+
+        private static string[] m_DirectionalFilterKeywords = {
+            "_DIRECTIONAL_PCF3",
+            "_DIRECTIONAL_PCF5",
+            "_DIRECTIONAL_PCF7",
+        };
+        private static string[] m_CascadeBlendKeywords = {
+            "_CASCADE_BLEND_SOFT",
+            "_CASCADE_BLEND_DITHER"
+        };
 
         public void Setup(
             ScriptableRenderContext renderContext,
@@ -122,6 +134,10 @@ namespace DSM
             m_CommandBuffer.SetGlobalVectorArray(m_CascadeDataId, m_CascadeData);
             m_CommandBuffer.SetGlobalVectorArray(m_CascadeCullingSpheresId, m_CascadeCullingSpheres);
             m_CommandBuffer.SetGlobalMatrixArray(m_DirShadowMatricesId, m_DirShadowMatrices);
+            m_CommandBuffer.SetGlobalVector(m_ShadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize));
+            
+            SetKeywords(m_DirectionalFilterKeywords, (int)m_ShadowSetting.m_Directional.m_FilterMode - 1);
+            SetKeywords(m_CascadeBlendKeywords, (int)m_ShadowSetting.m_Directional.m_CascadeBlendMode - 1);
             
             m_CommandBuffer.EndSample(m_BufferName);
             ExecuteBuffer();
@@ -153,12 +169,15 @@ namespace DSM
             int cascadeCount = m_ShadowSetting.m_Directional.m_CascadeCount;
             int tileOffset = index * cascadeCount;
             Vector3 ratios = m_ShadowSetting.m_Directional.m_CascadeRatios;
-
+            
+            float cullingFactor = Mathf.Max(0f, 0.8f - m_ShadowSetting.m_Directional.m_CascadeFade);
+            
             for (int i = 0; i < cascadeCount; i++) {
                 m_CullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
                     light.m_VisibleLightIndex, i, cascadeCount, ratios, tileSize, light.m_NearPlaneOffset,
                     out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
                     out ShadowSplitData splitData);
+                splitData.shadowCascadeBlendCullingFactor = cullingFactor;
                 // 阴影分割的剔除信息
                 shadowDrawingSettings.splitData = splitData;
                 if (index == 0) {   // 获取级联的剔除球体
@@ -182,10 +201,29 @@ namespace DSM
         {
             // 计算阴影贴图纹素的大小,同时考虑斜对角的情况
             float texelSize = 2 * cullingSphere.w / tileSize * 1.4142136f;
+            // 由于进行PCF会导致阴影暗疮加剧，因此适当提高Bias
+            float filterSize = texelSize * ((float)m_ShadowSetting.m_Directional.m_FilterMode + 1f);
+            // 对于剔除球边缘的阴影，不需要采样球外的样本点，通过减小半径来提前结束采样
+            cullingSphere.w -= filterSize;
             // 计算剔除球的平方半径，用于在着色器中判度面片是否在球中
             cullingSphere.w *= cullingSphere.w;
-            m_CascadeData[index] = new Vector4(1 / cullingSphere.w, texelSize, 0.0f);
+            m_CascadeData[index] = new Vector4(1 / cullingSphere.w, filterSize, 0.0f);
             m_CascadeCullingSpheres[index] = cullingSphere;
+        }
+
+        /// <summary>
+        /// 设置 PCF 的关键字
+        /// </summary>
+        private void SetKeywords(string[] keywords, int enableIndex)
+        {
+            for (int i = 0; i < keywords.Length; ++i) {
+                if (i == enableIndex) {
+                    m_CommandBuffer.EnableShaderKeyword(keywords[i]);
+                }
+                else {
+                    m_CommandBuffer.DisableShaderKeyword(keywords[i]);
+                }
+            }
         }
 
         private Vector2 SetTileViewport(int index, int split, int tileSize)

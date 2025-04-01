@@ -16,10 +16,14 @@ MonoBehaviour:
   m_UseGPUInstancing: 1
   m_UseSRPBatcher: 1
   m_ShadowSetting:
-    m_MaxDistance: 50
+    m_MaxDistance: 40
+    m_DistanceFade: 0.1
     m_Directional:
       m_AtlasSize: 1024
+      m_FilterMode: 2
+      m_CascadeBlendMode: 2
       m_CascadeCount: 4
       m_CascadeRatio1: 0.1
       m_CascadeRatio2: 0.25
       m_CascadeRatio3: 0.5
+      m_CascadeFade: 0.1

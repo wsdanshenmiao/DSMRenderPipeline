@@ -4,6 +4,10 @@ using UnityEngine.Rendering;
 
 public class DSMShaderGUI : ShaderGUI
 {
+        enum ShadowMode {
+                On, Clip, Dither, Off
+        }
+        
         private MaterialEditor m_MaterialEditor;
         private MaterialProperty[] m_MaterialProperties;
         private Object[] m_Materials;
@@ -36,7 +40,17 @@ public class DSMShaderGUI : ShaderGUI
                 }
         }
         
+        ShadowMode Shadows {
+                set {
+                        if (SetProperty("_Shadows", (float)value)) {
+                                SetKeyword("_SHADOWS_CLIP", value == ShadowMode.Clip);
+                                SetKeyword("_SHADOWS_DITHER", value == ShadowMode.Dither);
+                        }
+                }
+        }
+        
         public override void OnGUI (MaterialEditor materialEditor, MaterialProperty[] properties) {
+                EditorGUI.BeginChangeCheck();
                 base.OnGUI(materialEditor, properties);
                 m_MaterialEditor = materialEditor;
                 m_Materials = materialEditor.targets;
@@ -50,11 +64,9 @@ public class DSMShaderGUI : ShaderGUI
                         FadePreset();
                         TransparentPreset();
                 }
-        }
-
-        private void SetProperty(string name , float value)
-        {
-                FindProperty(name, m_MaterialProperties).floatValue = value;
+                if (EditorGUI.EndChangeCheck()) {
+                        SetShadowCasterPass();
+                }
         }
 
         private void SetKeyword(string name, bool enabled)
@@ -69,6 +81,27 @@ public class DSMShaderGUI : ShaderGUI
                                 material.DisableKeyword(name);
                         } 
                 }
+        }
+        
+        void SetShadowCasterPass () {
+                MaterialProperty shadows = FindProperty("_Shadows", m_MaterialProperties, false);
+                if (shadows == null || shadows.hasMixedValue) {
+                        return;
+                }
+                bool enabled = shadows.floatValue < (float)ShadowMode.Off;
+                foreach (Material m in m_Materials) {
+                        m.SetShaderPassEnabled("ShadowCaster", enabled);
+                }
+        }
+
+        bool SetProperty (string name, float value) 
+        {
+                MaterialProperty property = FindProperty(name, m_MaterialProperties, false);
+                if (property != null) {
+                        property.floatValue = value;
+                        return true;
+                }
+                return false;
         }
         
         void SetProperty (string name, string keyword, bool value) {

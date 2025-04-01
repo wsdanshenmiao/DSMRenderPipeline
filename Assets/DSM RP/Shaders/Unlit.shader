@@ -31,5 +31,21 @@ Shader "DSM RP/Unlit"
             #include "UnlitPass.hlsl"
             ENDHLSL
         }
+
+        Pass
+        {
+            Tags {"LightMode" = "ShadowCaster"}
+            
+            // 禁止颜色写入
+            ColorMask 0
+            
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma shader_feature _ _SHADOWS_CLIP _SHADOWS_DITHER
+            #pragma vertex ShadowCasterPassVertex
+            #pragma fragment ShadowCasterPassFragment
+            #include "ShadowCasterPass.hlsl"
+            ENDHLSL
+        }
     }
 }
