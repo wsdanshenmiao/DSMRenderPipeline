@@ -148,7 +148,7 @@ namespace DSM
                     var cullingSphere = splitData.cullingSphere;
                     // 计算剔除球的平方半径，用于在着色器中判度面片是否在球中
                     cullingSphere.w *= cullingSphere.w;
-                    m_CascadeCullingSpheres[i] = splitData.cullingSphere;
+                    m_CascadeCullingSpheres[i] = cullingSphere;
                 }
                 int tileIndex = tileOffset + i;
                 Vector2 offset = SetTileViewport(tileIndex, split, tileSize);
