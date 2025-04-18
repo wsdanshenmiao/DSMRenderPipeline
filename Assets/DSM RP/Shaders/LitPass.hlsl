@@ -1,28 +1,17 @@
 #ifndef __LITPASS__HLSL__
 #define __LITPASS__HLSL__
 
-#include "../ShaderLibrary/Common.hlsl"
 #include "../ShaderLibrary/Surface.hlsl"
 #include "../ShaderLibrary/Shadows.hlsl"
 #include "../ShaderLibrary/Lighting.hlsl"
 
-
-UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
-    UNITY_DEFINE_INSTANCED_PROP(float4, _BaseTex_ST)
-    UNITY_DEFINE_INSTANCED_PROP(float4, _BaseColor)
-    UNITY_DEFINE_INSTANCED_PROP(float, _Cutoff)
-    UNITY_DEFINE_INSTANCED_PROP(float, _Metallic)
-    UNITY_DEFINE_INSTANCED_PROP(float, _Smoothness)
-UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
-
-TEXTURE2D(_BaseTex);
-SAMPLER(sampler_BaseTex);
 
 struct Attributes
 {
     float3 posOS : POSITION;
     float3 normalOS : NORMAL;
     float2 uv : TEXCOORD0;
+    GI_ATTRIBUTE_DATA
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -32,6 +21,7 @@ struct Varyings
     float3 posWS : TEXCOORD1;
     float3 normalWS : NORMAL;
     float2 uv : TEXCOORD0;
+    GI_VARYINGS_DATA
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -42,11 +32,12 @@ Varyings LitPassVertex(Attributes i)
     UNITY_SETUP_INSTANCE_ID(i);
     UNITY_TRANSFER_INSTANCE_ID(i, o);
     
-    float4 texST = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _BaseTex_ST);
     o.posWS = TransformObjectToWorld(i.posOS);
     o.posCS = TransformWorldToHClip(o.posWS);
     o.normalWS = TransformObjectToWorldNormal(i.normalOS);
-    o.uv = i.uv * texST.xy + texST.zw;
+    o.uv = TransformBaseUV(i.uv);
+
+    TRANSFER_GI_DATA(i, o);
     
     return o;
 }
@@ -54,14 +45,12 @@ Varyings LitPassVertex(Attributes i)
 float4 LitPassFragment(Varyings i) : SV_TARGET
 {
     UNITY_SETUP_INSTANCE_ID(i)
-
-    float4 color = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _BaseColor);
-    float4 texCol = SAMPLE_TEXTURE2D(_BaseTex, sampler_BaseTex, i.uv);
-    float4 col = color * texCol;
+    
+    float4 col = GetBase(i.uv);
     
     // 由于会 Alpha 测试会阻止 EarlyZ 等优化，所以选择性开启
     #if defined(_CLIPPING)
-    clip(col.a - UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Cutoff));
+    clip(col.a - GetCutoff(i.uv));
     #endif
 
     // 获取物体的表面属性
@@ -70,8 +59,8 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
     surface.normal = normalize(i.normalWS);
     surface.color = col.rgb;
     surface.alpha = col.a;
-    surface.metallic = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Metallic);
-    surface.smoothness = UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Smoothness);
+    surface.metallic = GetMetallic(i.uv);
+    surface.smoothness = GetSmoothness(i.uv);
     surface.viewDirection = normalize(_WorldSpaceCameraPos - i.posWS);
     surface.depth = -TransformWorldToView(i.posWS).z;
     surface.dither = InterleavedGradientNoise(i.posCS.xy, 0);
@@ -82,7 +71,9 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
     BRDF brdf = GetBRDF(surface);
 #endif
 
-    col.rgb = GetLighting(surface, brdf);
+    GI gi = GetGI(GI_FRAGMENT_DATA(i), surface);
+    col.rgb = GetLighting(surface, brdf, gi);
+    col.rgb += GetEmission(i.uv);
     
     return float4(col.rgb, surface.alpha);
 }

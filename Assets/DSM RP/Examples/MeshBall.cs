@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 
 namespace DSM
 {
@@ -23,6 +25,8 @@ namespace DSM
         private Vector4[] m_Colors = new Vector4[m_MaxCount];
         
         private MaterialPropertyBlock m_PropertyBlock;
+        [SerializeField]
+        LightProbeProxyVolume m_LightProbeVolume = null;
         
         private void Awake()
         {
@@ -44,8 +48,19 @@ namespace DSM
                 m_PropertyBlock.SetFloatArray(m_MetallicId, m_Metallic);
                 m_PropertyBlock.SetFloatArray(m_SmoothnessId, m_Smoothness);
                 m_PropertyBlock.SetVectorArray(m_BaseColorID, m_Colors);
+                if (m_LightProbeVolume == null) {
+                    var positions = new Vector3[1023];
+                    for (int i = 0; i < m_Matrices.Length; i++) {
+                        positions[i] = m_Matrices[i].GetColumn(3);
+                    }
+                    var lightProbes = new SphericalHarmonicsL2[1023];
+                    LightProbes.CalculateInterpolatedLightAndOcclusionProbes(positions, lightProbes, null);
+                    m_PropertyBlock.CopySHCoefficientArraysFrom(lightProbes);
+                }
             }
-            Graphics.DrawMeshInstanced(m_Mesh, 0, m_Material, m_Matrices, m_Matrices.Length, m_PropertyBlock);
+            Graphics.DrawMeshInstanced(m_Mesh, 0, m_Material, m_Matrices, 
+                m_Matrices.Length, m_PropertyBlock, ShadowCastingMode.On, true, 0, null, 
+                m_LightProbeVolume ? LightProbeUsage.UseProxyVolume : LightProbeUsage.CustomProvided, m_LightProbeVolume);
         }
     }
 }

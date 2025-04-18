@@ -56,6 +56,8 @@ public class DSMShaderGUI : ShaderGUI
                 m_Materials = materialEditor.targets;
                 this.m_MaterialProperties = properties;
 
+                BakeEmisson();
+
                 EditorGUILayout.Space();
                 showPresets = EditorGUILayout.Foldout(showPresets, "Presets", true);
                 if (showPresets) {
@@ -66,6 +68,34 @@ public class DSMShaderGUI : ShaderGUI
                 }
                 if (EditorGUI.EndChangeCheck()) {
                         SetShadowCasterPass();
+                        CopyLightMappingProperties();
+                }
+        }
+        
+        void CopyLightMappingProperties () 
+        {
+                MaterialProperty mainTex = FindProperty("_MainTex", m_MaterialProperties, false);
+                MaterialProperty baseMap = FindProperty("_BaseTex", m_MaterialProperties, false);
+                if (mainTex != null && baseMap != null) {
+                        mainTex.textureValue = baseMap.textureValue;
+                        mainTex.textureScaleAndOffset = baseMap.textureScaleAndOffset;
+                }
+                MaterialProperty color = FindProperty("_Color", m_MaterialProperties, false);
+                MaterialProperty baseColor = FindProperty("_BaseColor", m_MaterialProperties, false);
+                if (color != null && baseColor != null) {
+                        color.colorValue = baseColor.colorValue;
+                }
+        }
+        
+        private void BakeEmisson()
+        {
+                EditorGUI.BeginChangeCheck();
+                m_MaterialEditor.LightmapEmissionProperty();
+                if (EditorGUI.EndChangeCheck()) {
+                        foreach (Material m in m_MaterialEditor.targets) {
+                                m.globalIlluminationFlags &=
+                                        ~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+                        }
                 }
         }
 

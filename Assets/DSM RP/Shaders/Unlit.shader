@@ -14,9 +14,17 @@ Shader "DSM RP/Unlit"
         _Cutoff ("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         // 是否开启 Alpha 测试
 		[Toggle(_CLIPPING)] _Clipping ("Alpha Clipping", Float) = 0
+        [KeywordEnum(On, Clip, Dither, Off)] _Shadows ("Shadows", Float) = 0
+        // 可控制是否接收阴影
+        [Toggle(_RECEIVE_SHADOWS)] _ReceiveShadows ("Receive Shadows", Float) = 1
     }
     SubShader
     {
+        HLSLINCLUDE
+        #include "../ShaderLibrary/Common.hlsl"
+        #include "UnlitInput.hlsl"
+        ENDHLSL
+        
         Pass
         {
             Blend [_SrcBlend] [_DstBlend]

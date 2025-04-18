@@ -66,11 +66,11 @@ float FilterDirectionalShadow(float3 posSTS)
     float weights[DIRECTIONAL_FILTER_SAMPLES];
     float2 positions[DIRECTIONAL_FILTER_SAMPLES];
     float4 size = _ShadowAtlasSize.yyxx;
-    DIRECTIONAL_FILTER_SETUP(size, posSTS, weights, positions);
+    DIRECTIONAL_FILTER_SETUP(size, posSTS.xy, weights, positions);
 
     // 进行 PCF
     float shadow = 0;
-    [flatten]
+    [unroll]
     for (int i = 0; i < DIRECTIONAL_FILTER_SAMPLES; ++i) {
         shadow += weights[i] * SampleDirectionalShadowAtlas(float3(positions[i], posSTS.z));
     }

@@ -101,7 +101,10 @@ namespace DSM
             DrawingSettings drawingSettings = new DrawingSettings(m_UnlitShaderTagId, sortingSettings)
             {
                 enableInstancing = useGPUInstancing,
-                enableDynamicBatching = useDynamicBatching
+                enableDynamicBatching = useDynamicBatching,
+                perObjectData = PerObjectData.Lightmaps | 
+                                PerObjectData.LightProbe | 
+                                PerObjectData.LightProbeProxyVolume
             };
             drawingSettings.SetShaderPassName(1, m_LitShaderTagId);
             // 先绘制不透明体
