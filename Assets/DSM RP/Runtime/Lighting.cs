@@ -13,18 +13,19 @@ namespace DSM
         
         Shadows m_Shadows = new Shadows();
 
-        static private int
+        static readonly private int
             m_DirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),
             m_DirLightColorsId = Shader.PropertyToID("_DirectionalLightColors"),
             m_DirLightDirectionsId = Shader.PropertyToID("_DirectionalLightDirections"),
             m_DirLightShadowDataId = Shader.PropertyToID("_DirectionalLightShadowData");
+        
+        
         static private Vector4[]
             m_DirLightColors = new Vector4[m_MaxDirLightCount],
             m_DirLightDirections = new Vector4[m_MaxDirLightCount],
             m_DirLightShadowData = new Vector4[m_MaxDirLightCount];
 
-        public void Setup(
-            ScriptableRenderContext context, 
+        public void Setup(ScriptableRenderContext context,
             CullingResults cullingResults,
             ShadowSetting shadowSetting)
         {
@@ -41,7 +42,7 @@ namespace DSM
             m_CommandBuffer.Clear();
         }
 
-        public void CleanUp()
+        public void Cleanup()
         {
             m_Shadows.CleanUp();
         }

@@ -42,7 +42,7 @@ Varyings LitPassVertex(Attributes i)
     return o;
 }
 
-float4 LitPassFragment(Varyings i) : SV_TARGET
+float4 LitPassFragment(Varyings i, out float3 normal : SV_TARGET1) : SV_TARGET0
 {
     UNITY_SETUP_INSTANCE_ID(i)
     
@@ -65,6 +65,8 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
     surface.depth = -TransformWorldToView(i.posWS).z;
     surface.dither = InterleavedGradientNoise(i.posCS.xy, 0);
 
+    normal = surface.normal;
+    
 #if defined(_PREMULTIPLY_ALPHA)
     BRDF brdf = GetBRDF(surface, true);
 #else
@@ -74,7 +76,7 @@ float4 LitPassFragment(Varyings i) : SV_TARGET
     GI gi = GetGI(GI_FRAGMENT_DATA(i), surface);
     col.rgb = GetLighting(surface, brdf, gi);
     col.rgb += GetEmission(i.uv);
-    
+
     return float4(col.rgb, surface.alpha);
 }
 

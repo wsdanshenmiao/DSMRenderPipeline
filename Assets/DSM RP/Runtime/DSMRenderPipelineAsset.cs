@@ -13,13 +13,16 @@ namespace DSM
 
         [SerializeField] private ShadowSetting m_ShadowSetting = default;
         
+        [SerializeField] private PostEffectManager m_PostEffectManager = new PostEffectManager();
+        
         protected override RenderPipeline CreatePipeline()
         {
             return new DSMRenderPipeline(
                 m_UseDynamicBatching, 
                 m_UseGPUInstancing, 
                 m_UseSRPBatcher,
-                m_ShadowSetting);
+                m_ShadowSetting,
+                m_PostEffectManager);
         }
     }
 }

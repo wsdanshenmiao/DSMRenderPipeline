@@ -53,7 +53,7 @@ Shader "DSM RP/Lit"
         	#pragma shader_feature _PREMULTIPLY_ALPHA    
             #pragma vertex LitPassVertex
             #pragma fragment LitPassFragment
-            #pragma target 3.5
+            #pragma target 5.0
             #include "LitPass.hlsl"
             ENDHLSL
         }
@@ -66,7 +66,7 @@ Shader "DSM RP/Lit"
             ColorMask 0
             
             HLSLPROGRAM
-            #pragma target 3.5
+            #pragma target 5.0
             #pragma shader_feature _ _SHADOWS_CLIP _SHADOWS_DITHER
             #pragma vertex ShadowCasterPassVertex
             #pragma fragment ShadowCasterPassFragment
@@ -81,7 +81,7 @@ Shader "DSM RP/Lit"
             Cull Off
             
             HLSLPROGRAM
-            #pragma target 3.5
+            #pragma target 5.0
             #pragma vertex MetaPassVertex
             #pragma fragment MetaPassFragment
             #include "MetaPass.hlsl"

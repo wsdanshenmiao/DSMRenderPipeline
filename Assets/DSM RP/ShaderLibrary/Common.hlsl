@@ -16,6 +16,11 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 
+SAMPLER(sampler_linear_clamp);
+SAMPLER(sampler_point_clamp);
+
+TEXTURE2D(_CameraColorTexture);
+TEXTURE2D(_CameraDepthTexture);
 
 float Square(float v)
 {
@@ -26,6 +31,34 @@ float Square(float v)
 float DistanceSquared(float3 v0, float3 v1)
 {
     return dot(v0 - v1, v0 - v1);
+}
+
+float GetCameraDepth(float2 uv)
+{
+    return SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_point_clamp, uv);
+}
+
+float GetCameraLinearDepth(float2 uv)
+{
+    return LinearEyeDepth(GetCameraDepth(uv), _ZBufferParams);
+}
+
+float4 GetCameraColor(float2 uv)
+{
+    return SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_linear_clamp, uv);
+}
+
+float3 GetWorldPosition(float2 uv)
+{
+    float4 posCS = float4(uv * 2 - 1, GetCameraDepth(uv), 1);
+    #if UNITY_UV_STARTS_AT_TOP
+    posCS.y *= -1;
+    #endif
+
+    float4 posWS = mul(Inverse(UNITY_MATRIX_VP), posCS);
+    posWS /= posCS.w;
+
+    return posWS;
 }
 
 #endif
