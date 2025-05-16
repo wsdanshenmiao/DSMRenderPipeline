@@ -12,5 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d0bc7b6fbc4746eebc9933566b1a6c75, type: 3}
   m_Name: SSR
   m_EditorClassIdentifier: 
-  m_Weight: 0
-  m_Material: {fileID: 0}
+  m_StencilRef: 200

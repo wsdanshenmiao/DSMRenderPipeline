@@ -26,6 +26,9 @@ Shader "DSM RP/SSRLit"
         [NoScaleOffset] _EmissionMap("Emission", 2D) = "white" {}
         [HDR] _EmissionColor("Emission Color", Color) = (0,0,0,0)
         
+        // 使用的模板值
+        _StencilRef("StencilRef", Range(0, 255)) = 200
+        
         [HideInInspector] _MainTex("Texture for Lightmap", 2D) = "white" {}
 		[HideInInspector] _Color("Color for Lightmap", Color) = (0.5, 0.5, 0.5, 1.0)
     }
@@ -35,6 +38,13 @@ Shader "DSM RP/SSRLit"
         #include "../ShaderLibrary/Common.hlsl"
         #include "LitInput.hlsl"
         ENDHLSL
+
+        Stencil
+        {
+            Ref [_StencilRef]
+            Comp Always
+            Pass Replace
+        }
         
         Pass
         {

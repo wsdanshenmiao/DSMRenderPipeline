@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Plane
-  m_Shader: {fileID: 4800000, guid: 98c226acae71c1942b56c83a05681e87, type: 3}
+  m_Shader: {fileID: 4800000, guid: fe10df7c09d844809f9358ae0e5c6ec9, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -86,6 +86,7 @@ Material:
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
+    - _StencilRef: 200
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:

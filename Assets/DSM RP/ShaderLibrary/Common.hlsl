@@ -55,10 +55,13 @@ float3 GetWorldPosition(float2 uv)
     posCS.y *= -1;
     #endif
 
-    float4 posWS = mul(Inverse(UNITY_MATRIX_VP), posCS);
-    posWS /= posCS.w;
-
-    return posWS;
+    float4 posVS = mul(Inverse(UNITY_MATRIX_P), posCS);
+    posVS /= posVS.w;
+    float3 posWS = mul(UNITY_MATRIX_I_V, posVS).xyz;
+    
+    return posWS.xyz;
 }
+
+
 
 #endif

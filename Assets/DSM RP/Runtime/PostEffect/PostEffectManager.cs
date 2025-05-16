@@ -76,16 +76,13 @@ namespace DSM
             rtIdentifier[1] = BuiltinRenderTextureType.CameraTarget;
             m_PostEffects.Sort(); // 根据后处理的权重进行排序
             
-            /*for (int i = 0; i < m_PostEffects.Count; i++) {
+            for (int i = 0; i < m_PostEffects.Count; i++) {
                 Render(cmd,
                     rtIdentifier[i % 2],
                     rtIdentifier[(i + 1) % 2],
                     m_PostEffects[i]);
-            }*/
-            Render(cmd,
-                sourceId,
-                BuiltinRenderTextureType.CameraTarget,
-                m_PostEffects[0]);
+            }
+            
             // 偶数次的话手动拷贝到相机当中
             if (m_PostEffects.Count % 2 == 0) {
                 cmd.Blit(sourceId, BuiltinRenderTextureType.CameraTarget);

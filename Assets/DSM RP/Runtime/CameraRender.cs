@@ -67,10 +67,9 @@ namespace DSM
             DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
             if (m_PostEffectManager.IsActive) {   // 进行屏幕后处理
+                m_CommandBuffer.SetGlobalTexture(m_NormalTextureId, m_NormalTexture);
                 m_PostEffectManager.Render(m_CameraColorTextureId);
             }
-            m_SSR.Render(m_CommandBuffer, m_CameraColorTextureId, 
-                BuiltinRenderTextureType.CameraTarget, m_NormalTexture, m_RenderCamera);
             
             DrawGizmos();
 

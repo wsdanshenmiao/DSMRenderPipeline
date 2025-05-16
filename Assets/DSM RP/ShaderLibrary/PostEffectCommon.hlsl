@@ -4,6 +4,12 @@
 CBUFFER_START(_POST_EFFECT)
 CBUFFER_END
 
+struct Ray
+{
+    float3 rayDir;
+    float3 origin;
+};
+
 struct Varyings
 {
     float4 posCS : SV_POSITION;

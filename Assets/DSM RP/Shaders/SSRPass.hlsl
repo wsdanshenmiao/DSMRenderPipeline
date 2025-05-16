@@ -6,47 +6,110 @@
 TEXTURE2D(_NormalTexture);
 SAMPLER(sampler_NormalTexture);
 
-float4 SSRPassFragment(Varyings input) : SV_TARGET
+CBUFFER_START(_SSRCONSTANTS)
+    int _RayMarchingMaxCount;
+    float _RayMarchingStep;
+    float _HitThreshold;
+CBUFFER_END
+
+bool GetCurrDepthAndUV(float3 currPos, out float currDepth, out float2 uv)
 {
-    float depth = GetCameraDepth(input.uv);
-    float3 posW = GetWorldPosition(input.uv);
-    [branch]
-    if (depth < 0.0001) return float4(0,0,0,1);
+    // 变换到NDC空间
+    float4 posCS = mul(UNITY_MATRIX_VP, float4(currPos, 1));
+    currDepth = posCS.w; // 根据投影矩阵可以得到齐次裁剪空间下的 w 就是视图空间下的深度
+    posCS.xyz /= posCS.w;
+        
+    // _ProjectionParams 为 1 或 -1
+    // 重建 uv 来获取采样点的深度及颜色
+    uv = float2(posCS.x, posCS.y * _ProjectionParams.x) * 0.5 + 0.5;
+    
+    return (0 <= uv.x && uv.x <= 1 && 0 <= uv.y && uv.y <= 1);
+}
 
-    // 获取RayMarching所需的信息
-    float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
-    float3 viewDir = normalize(posW - _WorldSpaceCameraPos.xyz);
-    float3 rayDir = normalize(reflect(viewDir, normal));
-    float3 currPos = posW;
-
-    float4 baseColor = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_linear_clamp, input.uv);
+// 二分查找，来准确定位反射光线打中的像素
+float4 SSRBinarySearch(Ray ray)
+{
+    float step = _RayMarchingStep * 0.5;
+    float3 prePos = ray.origin;
     
     [loop]
-    for (int i = 0; i < 400; ++i) {
-        currPos += rayDir * 0.05;
-
-        // 变换到NDC空间
-        float4 posNDC = mul(UNITY_MATRIX_VP, float4(currPos, 1));
-        float currDepth = posNDC.w; // 根据投影矩阵可以得到齐次裁剪空间下的 w 就是视图空间下的深度
-        posNDC /= posNDC.w;
-        
-        // _ProjectionParams 为 1 或 -1
-        // 重建 uv 来获取采样点的深度及颜色
-        float2 uv = float2(posNDC.x, posNDC.y * _ProjectionParams.x) * 0.5 + 0.5;
-        // 当前像素的物体的深度
-        float linearDepth = GetCameraLinearDepth(uv);
-
+    for (float3 curr = ray.origin; step > _RayMarchingStep * 0.075; ) {
+        prePos = curr;
+        curr += ray.rayDir * step;
+        float currDepth;
+        float2 uv;
+        GetCurrDepthAndUV(curr, currDepth, uv);
+        float depthTex = GetCameraLinearDepth(uv);
         [branch]
-        if (linearDepth < currDepth && currDepth < linearDepth + 0.8) {  // 射线已经穿过了物体
-            float4 refCol = GetCameraColor(uv);
-            float blend = 0.5;
-            return refCol;
-            return baseColor * blend + refCol * (1 - blend);
+        if (depthTex < currDepth) {
+            [flatten]
+            if (currDepth < depthTex + _HitThreshold) {  // 在阈值范围内
+                return GetCameraColor(uv);
+            }
+            else {
+                curr = prePos;
+                step *= 0.5;
+            }
+        }
+    }
+    return 0;
+}
+
+// 光线步进主体
+float4 SSRRayMarching(Ray ray)
+{
+    float3 currPos = ray.origin;
+    float3 prePos = currPos;
+    
+    [loop]
+    for (int i = 0; i < _RayMarchingMaxCount; ++i) {
+        prePos = currPos;
+        currPos += ray.rayDir * _RayMarchingStep;
+
+        // 获取当前位置的深度
+        float currDepth;
+        float2 uv;
+        if (!GetCurrDepthAndUV(currPos, currDepth, uv)) break;
+
+        float depthTex = GetCameraLinearDepth(uv);
+        
+        // 射线已经穿过了物体
+        [branch]
+        if (depthTex < currDepth) {
+            [flatten]
+            if (currDepth < depthTex + _HitThreshold) {  // 在阈值范围内
+                return GetCameraColor(uv);
+            }
+            else {
+                ray.origin = prePos;
+                return SSRBinarySearch(ray); // 回退并继续查找
+            }
         }
     }
 
-    return float4(0.0f, 0.0f, 0.0f, 1.0f);
-    return baseColor;
+    return float4(0, 0, 0, 1);
+}
+
+
+float4 SSRPassFragment(Varyings input) : SV_TARGET
+{
+    float3 posW = GetWorldPosition(input.uv);
+    
+    // 获取RayMarching所需的信息
+    float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
+    if (all(normal == 0)) return 0;
+    
+    float3 viewDir = normalize(posW - _WorldSpaceCameraPos.xyz);
+    float3 rayDir = normalize(reflect(viewDir, normal));
+    
+    float4 baseCol = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_linear_clamp, input.uv);
+    
+    Ray ray;
+    ray.rayDir = rayDir;
+    ray.origin = posW;
+    float4 reflectCol = SSRRayMarching(ray);
+    
+    return lerp(baseCol, reflectCol, reflectCol);
 }
 
 
