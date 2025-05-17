@@ -39,7 +39,7 @@ namespace DSM
 
         public List<PostEffect> PostEffects { get { return m_PostEffects; } }
         
-        public bool IsActive => m_PostEffects != null && m_PostEffects.Count > 0;
+        public bool IsActive => m_PostEffects != null;
         
 
         public void Setup(

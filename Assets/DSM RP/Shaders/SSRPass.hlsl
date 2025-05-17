@@ -31,7 +31,7 @@ float4 SSRBinarySearch(Ray ray)
 {
     float step = _RayMarchingStep * 0.5;
     float3 prePos = ray.origin;
-    
+    int decreaseCount = 0;
     [loop]
     for (float3 curr = ray.origin; step > _RayMarchingStep * 0.075; ) {
         prePos = curr;
@@ -47,9 +47,16 @@ float4 SSRBinarySearch(Ray ray)
                 return GetCameraColor(uv);
             }
             else {
+                [branch]
+                if (decreaseCount > 1) break;
+                else decreaseCount++;
+                // 回退并减少步频
                 curr = prePos;
                 step *= 0.5;
             }
+        }
+        else {
+            decreaseCount = 0;
         }
     }
     return 0;
@@ -108,7 +115,7 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     ray.rayDir = rayDir;
     ray.origin = posW;
     float4 reflectCol = SSRRayMarching(ray);
-    
+
     return lerp(baseCol, reflectCol, reflectCol);
 }
 
