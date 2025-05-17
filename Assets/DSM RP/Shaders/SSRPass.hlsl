@@ -29,11 +29,12 @@ bool GetCurrDepthAndUV(float3 currPos, out float currDepth, out float2 uv)
 // 二分查找，来准确定位反射光线打中的像素
 float4 SSRBinarySearch(Ray ray)
 {
+    const int maxSearchCount = 5;   // 限制查找次数
     float step = _RayMarchingStep * 0.5;
     float3 prePos = ray.origin;
-    int decreaseCount = 0;
+    float3 curr = ray.origin;
     [loop]
-    for (float3 curr = ray.origin; step > _RayMarchingStep * 0.075; ) {
+    for (int i = 0; i < maxSearchCount; i++) {
         prePos = curr;
         curr += ray.rayDir * step;
         float currDepth;
@@ -47,16 +48,10 @@ float4 SSRBinarySearch(Ray ray)
                 return GetCameraColor(uv);
             }
             else {
-                [branch]
-                if (decreaseCount > 1) break;
-                else decreaseCount++;
                 // 回退并减少步频
                 curr = prePos;
                 step *= 0.5;
             }
-        }
-        else {
-            decreaseCount = 0;
         }
     }
     return 0;
