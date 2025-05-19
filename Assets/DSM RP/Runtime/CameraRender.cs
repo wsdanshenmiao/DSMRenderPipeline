@@ -63,7 +63,6 @@ namespace DSM
             m_CommandBuffer.EndSample(m_SampleName);
             Setup();
             
-            
             DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
             DrawUnsupportedShaders();
             if (m_PostEffectManager.IsActive) {   // 进行屏幕后处理

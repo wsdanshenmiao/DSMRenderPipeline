@@ -62,6 +62,19 @@ float3 GetWorldPosition(float2 uv)
     return posWS.xyz;
 }
 
+float3 GetViewPosition(float2 uv)
+{
+    float4 posCS = float4(uv * 2 - 1, GetCameraDepth(uv), 1);
+    #if UNITY_UV_STARTS_AT_TOP
+    posCS.y *= -1;
+    #endif
+
+    float4 posVS = mul(Inverse(UNITY_MATRIX_P), posCS);
+    posVS /= posVS.w;
+
+    return posVS.xyz;
+}
+
 
 
 #endif

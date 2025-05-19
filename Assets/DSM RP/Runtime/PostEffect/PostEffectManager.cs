@@ -77,10 +77,11 @@ namespace DSM
             m_PostEffects.Sort(); // 根据后处理的权重进行排序
             
             for (int i = 0; i < m_PostEffects.Count; i++) {
-                Render(cmd,
-                    rtIdentifier[i % 2],
-                    rtIdentifier[(i + 1) % 2],
-                    m_PostEffects[i]);
+                if (m_PostEffects[i] != null) {
+                    Render(cmd, rtIdentifier[i % 2],
+                        rtIdentifier[(i + 1) % 2],
+                        m_PostEffects[i]);
+                }
             }
             
             // 偶数次的话手动拷贝到相机当中
