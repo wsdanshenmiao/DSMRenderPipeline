@@ -75,6 +75,42 @@ float3 GetViewPosition(float2 uv)
     return posVS.xyz;
 }
 
+float GetCameraTexWidth()
+{
+    return _ScreenParams.x;
+}
+
+float GetCameraTexHeight()
+{
+    return _ScreenParams.y;
+}
+
+float GetCameraTexInvWidth()
+{
+    return _ScreenParams.z - 1;
+}
+
+float GetCameraTexInvHeight()
+{
+    return _ScreenParams.w - 1;
+}
+
+float3 GetCameraPos()
+{
+    return _WorldSpaceCameraPos.xyz;
+}
+
+float GetFarPlane()
+{
+    return _ProjectionParams.z;
+}
+
+float GetNearPlane()
+{
+    return _ProjectionParams.y;
+}
+
+
 
 
 #endif

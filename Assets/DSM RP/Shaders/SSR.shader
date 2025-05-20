@@ -30,7 +30,7 @@ Shader "DSM RP/SSR"
             
             HLSLPROGRAM 
             #pragma vertex DefaultPostEffectVertex
-            #pragma fragment SSRPassFragment
+            #pragma fragment SSRPassWorldSpaceFragment
             #pragma target 5.0
             ENDHLSL
         }
