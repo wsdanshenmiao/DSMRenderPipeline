@@ -7,7 +7,7 @@ TEXTURE2D(_NormalTexture);
 SAMPLER(sampler_NormalTexture);
 
 CBUFFER_START(_SSRCONSTANTS)
-    int _RayMarchingMaxCount;
+    int _RayMarchingMaxDistance;
     float _RayMarchingStep;
     float _HitThreshold;
 CBUFFER_END
@@ -104,11 +104,13 @@ float4 BinarySearch(Ray ray)
 }
 
 // 光线步进主体
-float4 WorldSpaceRayMarching(Ray ray)
+float4 ViewSpaceRayMarching(Ray ray)
 {
     float4 outCol = float4(0, 0, 0, 1);
     float3 endPos = ray.origin;
-    if (!RayMarching(ray, _RayMarchingMaxCount, _RayMarchingStep, outCol, endPos)) {  // 未找到则进行二分查找
+    [branch]
+    if (_RayMarchingStep <= 0 || _RayMarchingMaxDistance <= 0) return outCol;
+    if (!RayMarching(ray, _RayMarchingMaxDistance / _RayMarchingStep, _RayMarchingStep, outCol, endPos)) {  // 未找到则进行二分查找
         ray.origin = endPos;
         outCol = BinarySearch(ray);
     }
@@ -117,7 +119,83 @@ float4 WorldSpaceRayMarching(Ray ray)
 }
 
 
-float4 SSRPassWorldSpaceFragment(Varyings input) : SV_TARGET
+// 屏幕空间的 RayMarching，输入为视图空间的反射光线
+float4 ScreenSpaceRayMarching(Ray ray)
+{
+    if (_RayMarchingStep <= 0 || _RayMarchingMaxDistance <= 0) return float4(0, 0, 0, 1);
+    const int marchingCount = _RayMarchingMaxDistance / _RayMarchingStep;
+    
+    // 限制到近平面内
+    float rayLen = (ray.origin.z + ray.rayDir.z * _RayMarchingMaxDistance) < GetNearPlane() ?
+        (ray.origin.z - GetNearPlane()) / ray.rayDir.z : _RayMarchingMaxDistance;
+    float3 endPosVS = ray.origin + ray.rayDir * rayLen;
+
+    // 转换到NDC空间 [-1, 1]
+    float4 startCS = mul(UNITY_MATRIX_P, float4(ray.origin, 1));
+    float4 endPosCS = mul(UNITY_MATRIX_P, float4(endPosVS, 1));
+    const float startK = 1.0 / startCS.w, endK = 1.0 / endPosCS.w;
+    startCS *= startK;
+    endPosCS *= endK;
+
+    // 变换到屏幕空间
+    const float2 widthHeight = float2(GetCameraTexWidth(), GetCameraTexHeight());
+    const float2 invWH = 1.0f / widthHeight;
+    float2 startSS = (startCS.xy * 0.5 + 0.5) * widthHeight;
+    float2 endSS = (endPosCS.xy * 0.5 + 0.5) * widthHeight;
+
+    // 由于后续需要得知当前点的深度，因此还需要保存视图空间下的坐标
+    // 由于屏幕空间的步进和视图空间的步进不是线性关系，因此需要使用齐次坐标下的 W 来进行联系
+    float3 startQ = ray.origin * startK;
+    float3 endQ = endPosVS * endK;
+
+    float2 offsetSS = endSS - startSS;
+    bool steep = abs(offsetSS.y) > abs(offsetSS.x); // 斜率是否大于1
+    [flatten]
+    if (steep) {  // 若斜率大于1则互换
+        offsetSS = offsetSS.yx;
+        startSS = startSS.yx;
+        endSS = endSS.yx;
+        steep = true;
+    }
+
+    // 步进的方向                       转换为正
+    float stepDir = sign(offsetSS.x), invDx = stepDir / offsetSS.x;
+    // 每次步进各个变量的偏移
+    float3 offsetQ = (endQ - startQ) * invDx;
+    float offsetK = (endK - startK) * invDx;
+    offsetSS = float2(stepDir, offsetSS.y * invDx);
+    
+    float2 currPosSS = startSS;
+    float3 currQ = startQ;
+    float currK = startK;
+    float preZ = ray.origin.z;
+    [loop]
+    for (int iii = 0; (currPosSS.x * stepDir < endSS.x * stepDir) && iii < marchingCount;
+        ++iii, currPosSS += offsetSS, currQ.z += offsetQ.z, currK += offsetK) {
+        float2 uv = steep ? currPosSS.yx : currPosSS.xy;
+        uv *= invWH;
+        float sceneZ = GetCameraLinearDepth(uv);
+
+        float minZ = preZ;
+        // 通过 K 获得当前位置的深度
+        float maxZ = (currQ.z + 0.5f * offsetQ.z) / (currK + 0.5f * offsetK);
+        preZ = maxZ;
+        [flatten]
+        if (minZ > maxZ) {
+            SwapFloat(minZ, maxZ);
+        }
+
+        [branch]
+        if (minZ <= sceneZ && maxZ > sceneZ - _HitThreshold) {
+            return GetCameraColor(uv);
+        }
+    }
+
+    return float4(0, 0, 0, 1);
+}
+
+
+float4 SSRPassFragment(Varyings input) : SV_TARGET
 {
     // 获取RayMarching所需的信息
     float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
@@ -129,117 +207,19 @@ float4 SSRPassWorldSpaceFragment(Varyings input) : SV_TARGET
     normal = normalize(mul((float3x3)unity_MatrixV, normal));
     float3 rayDir = normalize(reflect(viewDir, normal));
     
-    float4 baseCol = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_linear_clamp, input.uv);
+    float4 baseCol = GetCameraColor(input.uv);
     
     Ray ray;
     ray.rayDir = rayDir;
     ray.origin = posVS;
-    float4 reflectCol = WorldSpaceRayMarching(ray);
+    float4 reflectCol = ScreenSpaceRayMarching(ray);
 
+    return reflectCol;
     return baseCol + reflectCol;
     return lerp(baseCol, reflectCol, reflectCol);
 }
 
 
-float4 SSRPassScreenSpaceFragment(Varyings input) : SV_TARGET
-{
-    float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
-    [branch]
-    if (all(normal == 0)) return 0;
-
-    // 计算世界空间下的反射向量
-    float3 viewDir = normalize(GetWorldPosition(input.uv) - GetCameraPos());
-    float3 rayDirWS = normalize(reflect(viewDir, normal));
-
-    // 转换到视图空间
-    float2 rayDirVS = normalize(mul((float3x3)UNITY_MATRIX_V, rayDirWS).xy);
-    
-    
-}
-
-/*
-5 bool traceScreenSpaceRay##numLayers(point3 csOrig, vec3 csDir, mat4x4 proj,
-6 sampler2D csZBuffer, vec2 csZBufferSize, float zThickness,
-7 const bool csZBufferIsHyperbolic, vec3 clipInfo, float nearPlaneZ,
-8 float stride, float jitter, const float maxSteps, float maxDistance,
-9 out point2 hitPixel, out int hitLayer, out point3 csHitPoint) {
-    10
-    11 // Clip to the near plane
-    12 float rayLength = ((csOrig.z + csDir.z * maxDistance) > nearPlaneZ) ?
-    13 (nearPlaneZ - csOrig.z) / csDir.z : maxDistance;
-    14 point3 csEndPoint = csOrig + csDir * rayLength;
-    15 hitPixel = point2(-1, -1);
-    16
-    17 // Project into screen space
-    18 vec4 H0 = proj * vec4(csOrig, 1.0), H1 = proj * vec4(csEndPoint, 1.0);
-    19 float k0 = 1.0 / H0.w, k1 = 1.0 / H1.w;
-    20 point3 Q0 = csOrig * k0, Q1 = csEndPoint * k1;
-    21
-    22 // Screen-space endpoints
-    23 point2 P0 = H0.xy * k0, P1 = H1.xy * k1;
-    24
-    25 // [ Optionally clip here using listing 4 ]
-    26
-    27 P1 += vec2((distanceSquared(P0, P1) < 0.0001) ? 0.01 : 0.0);
-    28 vec2 delta = P1 - P0;
-    29
-    30 bool permute = false;
-    31 if (abs(delta.x) < abs(delta.y)) {
-        32 permute = true;
-        33 delta = delta.yx; P0 = P0.yx; P1 = P1.yx;
-        34 }
-    35
-    36 float stepDir = sign(delta.x), invdx = stepDir / delta.x;
-    37
-    38 // Track the derivatives of Q and k.
-    39 vec3 dQ = (Q1 - Q0) * invdx;
-    40 float dk = (k1 - k0) * invdx;
-    41 vec2 dP = vec2(stepDir, delta.y * invdx);
-    42
-    43 dP *= stride; dQ *= stride; dk *= stride;
-    44 P0 += dP * jitter; Q0 += dQ * jitter; k
-// Slide P from P0 to P1, (now-homogeneous) Q from Q0 to Q1, k from k0 to k1
-47 point3 Q = Q0; float k = k0, stepCount = 0.0, end = P1.x * stepDir;
-48 for (point2 P = P0;
-49 ((P.x * stepDir) <= end) && (stepCount < maxSteps);
-50 P += dP, Q.z += dQ.z, k += dk, stepCount += 1.0) {
-    51
-    52 // Project back from homogeneous to camera space
-    53 hitPixel = permute ? P.yx : P;
-    54
-    55 // The depth range that the ray covers within this loop iteration.
-    56 // Assume that the ray is moving in increasing z and swap if backwards.
-    57 float rayZMin = prevZMaxEstimate;
-    58 // Compute the value at 1/2 pixel into the future
-    59 float rayZMax = (dQ.z * 0.5 + Q.z) / (dk * 0.5 + k);
-    60 prevZMaxEstimate = rayZMax;
-    61 if (rayZMin > rayZMax) { swap(rayZMin, rayZMax); }
-    62
-    63 // Camera-space z of the background at each layer (there can be up to 4)
-    64 vec4 sceneZMax = texelFetch(csZBuffer, int2(hitPixel), 0);
-    65
-    66 if (csZBufferIsHyperbolic) {
-        67 # for (int layer = 0; layer < numLayers; ++layer)
-        68 sceneZMax[layer] = reconstructCSZ(sceneZMax[layer], clipInfo);
-        69 # endfor
-        70 }
-    71 float4 sceneZMin = sceneZMax - zThickness;
-    72
-    73 # for (int L = 0; L < numLayers; ++L)
-    74 if (((rayZMax >= sceneZMin[L]) && (rayZMin <= sceneZMax[L])) ||
-    75 (sceneZMax[L] == 0)) {
-        76 hitLayer = layer;
-        77 break; // Breaks out of both loops, since the inner loop is a macro
-        78 }
-    79 # endfor // layer
-    80 } // for each pixel on ray
-81
-82 // Advance Q based on the number of steps
-83 Q.xy += dQ.xy * stepCount; hitPoint = Q * (1.0 / k);
-84 return all(lessThanEqual(abs(hitPixel - (csZBufferSize * 0.5)),
-85 csZBufferSize * 0.5));
-86 }
-*/
 
 
 #endif

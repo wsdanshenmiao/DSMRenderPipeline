@@ -110,7 +110,12 @@ float GetNearPlane()
     return _ProjectionParams.y;
 }
 
-
+void SwapFloat(inout float a, inout float b)
+{
+    float tmp = a;
+    a = b;
+    b = tmp;
+}
 
 
 #endif
