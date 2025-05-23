@@ -170,35 +170,11 @@ float4 ScreenSpaceRayMarching(Ray ray)
     float3 offsetQ = (endQ - startQ) * invDx;
     float offsetK = (endK - startK) * invDx;
     offsetSS = float2(stepDir, offsetSS.y * invDx);
-    //return float4(offsetSS, 0, 1);
 
     float2 currSS = startSS;
     float3 currQ = startQ;
     float currK = startK;
     float preZ = ray.origin.z;
-
-    // test
-#if 0
-    int testStep = 1;
-    float2 testPos = currSS + offsetSS * testStep;
-    float3 testQ = currQ + offsetQ * testStep;
-    float testK = currK + offsetK * testStep;
-    float2 testUV = steep ? testPos.yx : testPos.xy;
-    testUV *= invWH;
-    testUV.y = 1 - testUV.y;
-    float testMaxZ = (testQ.z ) / (testK );
-    float testMinZ = (testQ.z - offsetK) / (testK - offsetK);
-    if (testMinZ > testMaxZ) {
-        SwapFloat(testMinZ, testMaxZ);
-    }
-    bool inRange = all(0 <= testUV && testUV <= 1);
-    float testSceneZ = -GetCameraLinearDepth(testUV);
-    //return testSceneZ - testMinZ;
-    //return testMaxZ - testSceneZ + _HitThreshold;
-    //return testMinZ <= testSceneZ && testMaxZ >= testSceneZ - _HitThreshold && inRange;
-    //return testQ.z / testK / 100;
-    return GetCameraColor(testUV);
-#endif
     
     [loop]
     for (int iii = 0; (currSS.x * stepDir < endSS.x * stepDir) && iii < marchingCount; ++iii) {
@@ -243,18 +219,15 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     float3 posVS = GetViewPosition(input.uv);
     float3 viewDir = normalize(posVS);
     float3 rayDir = normalize(reflect(viewDir, normal));    // 若z大于0则会出问题
-    //return rayDir.z > 0;
-    
-    //if (rayDir.z > 0) rayDir.z *= -1;
-    //return float4(rayDir, 1);
     
     float4 baseCol = GetCameraColor(input.uv);
     
+    const float posUP = 0.05;
     Ray ray;
     ray.rayDir = rayDir;
-    ray.origin = posVS;
+    ray.origin = posVS + normal * posUP;
     float4 reflectCol = ScreenSpaceRayMarching(ray);
-    //return baseCol;
+
     return reflectCol;
     //return baseCol + reflectCol;
     //return lerp(baseCol, reflectCol, reflectCol);
