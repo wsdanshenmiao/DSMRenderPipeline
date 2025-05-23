@@ -65,7 +65,7 @@ float4 LitPassFragment(Varyings i, out float3 normal : SV_TARGET1) : SV_TARGET0
     surface.depth = -TransformWorldToView(i.posWS).z;
     surface.dither = InterleavedGradientNoise(i.posCS.xy, 0);
 
-    normal = surface.normal;
+    normal = surface.normal * 0.5 + 0.5;
 
 #if defined(_PREMULTIPLY_ALPHA)
     BRDF brdf = GetBRDF(surface, true);

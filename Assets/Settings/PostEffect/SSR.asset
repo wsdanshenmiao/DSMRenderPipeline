@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: SSR
   m_EditorClassIdentifier: 
   m_StencilRef: 200
-  m_RayMarchingMaxDistance: 100
+  m_RayMarchingMaxDistance: 40
   m_RayMarchingStep: 0.1
   m_HitThreshold: 0.1

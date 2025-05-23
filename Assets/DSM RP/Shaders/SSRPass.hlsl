@@ -122,26 +122,32 @@ float4 ViewSpaceRayMarching(Ray ray)
 // 屏幕空间的 RayMarching，输入为视图空间的反射光线
 float4 ScreenSpaceRayMarching(Ray ray)
 {
+    [branch]
     if (_RayMarchingStep <= 0 || _RayMarchingMaxDistance <= 0) return float4(0, 0, 0, 1);
     const int marchingCount = _RayMarchingMaxDistance / _RayMarchingStep;
-    
+
     // 限制到近平面内
-    float rayLen = (ray.origin.z + ray.rayDir.z * _RayMarchingMaxDistance) < GetNearPlane() ?
-        (ray.origin.z - GetNearPlane()) / ray.rayDir.z : _RayMarchingMaxDistance;
+    const float nearPlaneZ = -0.001;
+    float rayLen = (ray.origin.z + ray.rayDir.z * _RayMarchingMaxDistance) >= nearPlaneZ ?
+        (nearPlaneZ - ray.origin.z) / ray.rayDir.z : _RayMarchingMaxDistance;
     float3 endPosVS = ray.origin + ray.rayDir * rayLen;
 
     // 转换到NDC空间 [-1, 1]
     float4 startCS = mul(UNITY_MATRIX_P, float4(ray.origin, 1));
-    float4 endPosCS = mul(UNITY_MATRIX_P, float4(endPosVS, 1));
-    const float startK = 1.0 / startCS.w, endK = 1.0 / endPosCS.w;
+    float4 endCS = mul(UNITY_MATRIX_P, float4(endPosVS, 1));
+    const float startK = 1.0 / startCS.w, endK = 1.0 / endCS.w;
     startCS *= startK;
-    endPosCS *= endK;
+    endCS *= endK;
+
+    endCS += (DistanceSquared(startCS, endCS) < 0.0001f) ? float4(0.01, 0.01, 0, 0) : 0;
 
     // 变换到屏幕空间
-    const float2 widthHeight = float2(GetCameraTexWidth(), GetCameraTexHeight());
-    const float2 invWH = 1.0f / widthHeight;
-    float2 startSS = (startCS.xy * 0.5 + 0.5) * widthHeight;
-    float2 endSS = (endPosCS.xy * 0.5 + 0.5) * widthHeight;
+    const float2 WH = float2(GetCameraTexWidth(), GetCameraTexHeight());
+    const float2 invWH = 1.0f / WH;
+    float2 startSS = float2(startCS.x, startCS.y)  * 0.5 + 0.5;
+    float2 endSS = float2(endCS.x, endCS.y)  * 0.5 + 0.5;
+    startSS *= WH;
+    endSS *= WH;
 
     // 由于后续需要得知当前点的深度，因此还需要保存视图空间下的坐标
     // 由于屏幕空间的步进和视图空间的步进不是线性关系，因此需要使用齐次坐标下的 W 来进行联系
@@ -164,30 +170,61 @@ float4 ScreenSpaceRayMarching(Ray ray)
     float3 offsetQ = (endQ - startQ) * invDx;
     float offsetK = (endK - startK) * invDx;
     offsetSS = float2(stepDir, offsetSS.y * invDx);
-    
-    float2 currPosSS = startSS;
+    //return float4(offsetSS, 0, 1);
+
+    float2 currSS = startSS;
     float3 currQ = startQ;
     float currK = startK;
     float preZ = ray.origin.z;
-    [loop]
-    for (int iii = 0; (currPosSS.x * stepDir < endSS.x * stepDir) && iii < marchingCount;
-        ++iii, currPosSS += offsetSS, currQ.z += offsetQ.z, currK += offsetK) {
-        float2 uv = steep ? currPosSS.yx : currPosSS.xy;
-        uv *= invWH;
-        float sceneZ = GetCameraLinearDepth(uv);
 
+    // test
+#if 0
+    int testStep = 1;
+    float2 testPos = currSS + offsetSS * testStep;
+    float3 testQ = currQ + offsetQ * testStep;
+    float testK = currK + offsetK * testStep;
+    float2 testUV = steep ? testPos.yx : testPos.xy;
+    testUV *= invWH;
+    testUV.y = 1 - testUV.y;
+    float testMaxZ = (testQ.z ) / (testK );
+    float testMinZ = (testQ.z - offsetK) / (testK - offsetK);
+    if (testMinZ > testMaxZ) {
+        SwapFloat(testMinZ, testMaxZ);
+    }
+    bool inRange = all(0 <= testUV && testUV <= 1);
+    float testSceneZ = -GetCameraLinearDepth(testUV);
+    //return testSceneZ - testMinZ;
+    //return testMaxZ - testSceneZ + _HitThreshold;
+    //return testMinZ <= testSceneZ && testMaxZ >= testSceneZ - _HitThreshold && inRange;
+    //return testQ.z / testK / 100;
+    return GetCameraColor(testUV);
+#endif
+    
+    [loop]
+    for (int iii = 0; (currSS.x * stepDir < endSS.x * stepDir) && iii < marchingCount; ++iii) {
+        currSS += offsetSS, currQ.z += offsetQ.z, currK += offsetK;
+        
+        float2 uv = steep ? currSS.yx : currSS.xy;
+        uv *= invWH;
+#if UNITY_UV_STARTS_AT_TOP
+        uv.y = 1 - uv.y;    // 需要进行反转
+#endif
+        float sceneZ = -GetCameraLinearDepth(uv);
+        
         float minZ = preZ;
         // 通过 K 获得当前位置的深度
-        float maxZ = (currQ.z + 0.5f * offsetQ.z) / (currK + 0.5f * offsetK);
+        //float maxZ = (currQ.z + 0.5f * offsetQ.z) / (currK + 0.5f * offsetK);
+        float maxZ = currQ.z / currK;
         preZ = maxZ;
         [flatten]
-        if (minZ > maxZ) {
+        if (minZ > maxZ){
             SwapFloat(minZ, maxZ);
         }
-
+        bool inRange = all(0 <= uv && uv <= 1);
         [branch]
-        if (minZ <= sceneZ && maxZ > sceneZ - _HitThreshold) {
-            return GetCameraColor(uv);
+        if (minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold && inRange) {
+            float4 col = GetCameraColor(uv);
+            return col;
         }
     }
 
@@ -200,12 +237,16 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     // 获取RayMarching所需的信息
     float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
     [branch]
-    if (all(normal == 0)) return 0;
-
+    if (all(normal == 0)) return float4(0, 0, 0, 1);    // 排除天空盒
+    normal = normal * 2 - 1;
+    normal = normalize(mul((float3x3)unity_MatrixV, normal));
     float3 posVS = GetViewPosition(input.uv);
     float3 viewDir = normalize(posVS);
-    normal = normalize(mul((float3x3)unity_MatrixV, normal));
-    float3 rayDir = normalize(reflect(viewDir, normal));
+    float3 rayDir = normalize(reflect(viewDir, normal));    // 若z大于0则会出问题
+    //return rayDir.z > 0;
+    
+    //if (rayDir.z > 0) rayDir.z *= -1;
+    //return float4(rayDir, 1);
     
     float4 baseCol = GetCameraColor(input.uv);
     
@@ -213,10 +254,10 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     ray.rayDir = rayDir;
     ray.origin = posVS;
     float4 reflectCol = ScreenSpaceRayMarching(ray);
-
+    //return baseCol;
     return reflectCol;
-    return baseCol + reflectCol;
-    return lerp(baseCol, reflectCol, reflectCol);
+    //return baseCol + reflectCol;
+    //return lerp(baseCol, reflectCol, reflectCol);
 }
 
 

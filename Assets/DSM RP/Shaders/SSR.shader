@@ -28,7 +28,7 @@ Shader "DSM RP/SSR"
              }
             Name "SSR"
             
-            HLSLPROGRAM 
+            HLSLPROGRAM
             #pragma vertex DefaultPostEffectVertex
             #pragma fragment SSRPassFragment
             #pragma target 5.0

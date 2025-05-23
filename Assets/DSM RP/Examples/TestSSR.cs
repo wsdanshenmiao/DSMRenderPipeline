@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class TestSSR : MonoBehaviour
@@ -8,9 +9,19 @@ public class TestSSR : MonoBehaviour
         public Vector3 rayDir;
     }
 
+    private Camera m_Camera;
+    
     public float _RayMarchingStep = 0.1f;
     public float _RayMarchingMaxDistance = 100;
-    /*
+
+    private Matrix4x4 UNITY_MATRIX_P;
+    
+    private void Awake()
+    {
+        m_Camera = GetComponent<Camera>();
+        UNITY_MATRIX_P = m_Camera.projectionMatrix;
+    }
+    
     // Update is called once per frame
     void Update()
     {
@@ -24,18 +35,17 @@ public class TestSSR : MonoBehaviour
         Vector3 endPosVS = ray.origin + ray.rayDir * rayLen;
 
         // 转换到NDC空间 [-1, 1]
-        Vector4 startCS = mul(UNITY_MATRIX_P, Vector4(ray.origin, 1));
-        Vector4 endPosCS = mul(UNITY_MATRIX_P, Vector4(endPosVS, 1));
-        const float startK = 1.0 / startCS.w, endK = 1.0 / endPosCS.w;
+        /*Vector4 startCS = mul(UNITY_MATRIX_P, new Vector4(ray.origin, 1));
+        Vector4 endPosCS = mul(UNITY_MATRIX_P, new Vector4(endPosVS, 1));
+        float startK = 1.0f / startCS.w, endK = 1.0f / endPosCS.w;
         startCS *= startK;
         endPosCS *= endK;
 
         // 变换到屏幕空间
-        const Vector2 widthHeight = new Vector2(GetCameraTexWidth(), GetCameraTexHeight());
-        const Vector2 invWH = 1.0f / widthHeight;
+        Vector2 widthHeight = new Vector2(GetCameraTexWidth(), GetCameraTexHeight());
+        Vector2 invWH = 1.0f / widthHeight;
         Vector2 startSS = (startCS.xy * 0.5 + 0.5) * widthHeight;
         Vector2 endSS = (endPosCS.xy * 0.5 + 0.5) * widthHeight;
-
         // 由于后续需要得知当前点的深度，因此还需要保存视图空间下的坐标
         // 由于屏幕空间的步进和视图空间的步进不是线性关系，因此需要使用齐次坐标下的 W 来进行联系
         Vector3 startQ = ray.origin * startK;
@@ -82,7 +92,22 @@ public class TestSSR : MonoBehaviour
             if (minZ <= sceneZ && maxZ > sceneZ - _HitThreshold) {
                 return GetCameraColor(uv);
             }
-        }
+        }*/
     }
-    */
+
+    private Vector4 mul(Matrix4x4 m, Vector4 v)
+    {
+        return m.MultiplyVector(v);
+    }
+
+    private float abs(float v)
+    {
+        return Math.Abs(v);
+    }
+    
+    private float GetNearPlane()
+    {
+        return m_Camera.nearClipPlane;
+    }
+    
 }
