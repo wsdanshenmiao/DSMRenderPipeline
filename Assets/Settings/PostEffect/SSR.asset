@@ -15,4 +15,4 @@ MonoBehaviour:
   m_StencilRef: 200
   m_RayMarchingMaxDistance: 40
   m_RayMarchingStep: 0.1
-  m_HitThreshold: 0.1
+  m_HitThreshold: 0.2

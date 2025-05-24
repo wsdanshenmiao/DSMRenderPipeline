@@ -228,9 +228,9 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     ray.origin = posVS + normal * posUP;
     float4 reflectCol = ScreenSpaceRayMarching(ray);
 
-    return reflectCol;
+    //return reflectCol;
     //return baseCol + reflectCol;
-    //return lerp(baseCol, reflectCol, reflectCol);
+    return lerp(baseCol, reflectCol, reflectCol);
 }
 
 
