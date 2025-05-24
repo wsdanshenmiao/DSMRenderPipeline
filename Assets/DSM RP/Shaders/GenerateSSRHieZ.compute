@@ -1,0 +1,30 @@
+#pragma kernel GenerateSSRHieZ
+
+Texture2D<float> _DepthTexture;
+SamplerState sampler_DepthTexture;
+
+RWTexture2D<float4> _HieZTexture;
+
+float SampleDepth(float2 uv, float2 offset)
+{
+    return _DepthTexture.SampleLevel(sampler_DepthTexture, uv, 0, offset);
+}
+
+[numthreads(1,1,1)]
+void GenerateSSRHieZ (uint3 id : SV_DispatchThreadID)
+{
+    // 计算当前像素需要采样的四个纹理坐标并采样
+    float width, height;
+    _HieZTexture.GetDimensions(width, height);
+    float2 uv = float2(id.xy) / float2(width, height);
+    float depth0 = SampleDepth(uv, float2(-0.5, -0.5));
+    float depth1 = SampleDepth(uv, float2(0.5, -0.5));
+    float depth2 = SampleDepth(uv, float2(0.5, 0.5));
+    float depth3 = SampleDepth(uv, float2(-0.5, 0.5));
+    
+    // 求四个深度的最大值
+    float maxDepth = max(max(depth0, depth1), max(depth2, depth3));
+    
+    // 写入输出纹理
+    _HieZTexture[id.xy] = maxDepth;
+}

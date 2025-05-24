@@ -12,6 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d0bc7b6fbc4746eebc9933566b1a6c75, type: 3}
   m_Name: SSR
   m_EditorClassIdentifier: 
+  m_SSRMode: 2
+  m_HieZCount: 4
+  m_GenerateHieZComputeShader: {fileID: 7200000, guid: cf160ada6e3eae842818e08480c24fb5,
+    type: 3}
   m_StencilRef: 200
   m_RayMarchingMaxDistance: 40
   m_RayMarchingStep: 0.1

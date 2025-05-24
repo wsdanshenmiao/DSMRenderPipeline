@@ -18,7 +18,8 @@ namespace DSM
             virtual public void Render(
                 CommandBuffer cmd, 
                 RenderTargetIdentifier src,
-                RenderTargetIdentifier dest)
+                RenderTargetIdentifier dest,
+                Camera camera)
             {
                 cmd.Blit(src, dest);
             }
@@ -34,6 +35,7 @@ namespace DSM
         private const string m_BufferName = "PostEffects";
         
         private ScriptableRenderContext m_RenderContext;
+        private Camera m_RenderCamera;
         
         [SerializeField] private List<PostEffect> m_PostEffects = new List<PostEffect>();
 
@@ -48,15 +50,17 @@ namespace DSM
             CullingResults cullingResults)
         {
             m_RenderContext = renderContext;
+            m_RenderCamera = camera;
         }
 
         public void Render(
             CommandBuffer cmd,
             RenderTargetIdentifier src,
             RenderTargetIdentifier dest,
-            PostEffect postEffect)
+            PostEffect postEffect,
+            Camera camera)
         {
-            postEffect.Render(cmd, src, dest);
+            postEffect.Render(cmd, src, dest, camera);
             m_RenderContext.ExecuteCommandBuffer(cmd);
             cmd.Clear();
         }
@@ -80,7 +84,8 @@ namespace DSM
                 if (m_PostEffects[i] != null) {
                     Render(cmd, rtIdentifier[i % 2],
                         rtIdentifier[(i + 1) % 2],
-                        m_PostEffects[i]);
+                        m_PostEffects[i],
+                        m_RenderCamera);
                 }
             }
             

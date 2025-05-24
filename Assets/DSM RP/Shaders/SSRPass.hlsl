@@ -119,6 +119,8 @@ float4 ViewSpaceRayMarching(Ray ray)
 }
 
 
+
+
 // 屏幕空间的 RayMarching，输入为视图空间的反射光线
 float4 ScreenSpaceRayMarching(Ray ray)
 {
@@ -229,8 +231,8 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     float4 reflectCol = ScreenSpaceRayMarching(ray);
 
     //return reflectCol;
-    //return baseCol + reflectCol;
-    return lerp(baseCol, reflectCol, reflectCol);
+    return baseCol + reflectCol;
+    //return lerp(baseCol, reflectCol, reflectCol);
 }
 
 

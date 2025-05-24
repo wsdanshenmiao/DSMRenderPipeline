@@ -19,7 +19,6 @@ namespace DSM
         private PostEffectManager m_PostEffectManager;
         
         private RenderTexture m_NormalTexture;
-        private SSR m_SSR = new SSR();
         
         static private ShaderTagId 
             m_UnlitShaderTagId = new ShaderTagId("SRPDefaultUnlit"),
