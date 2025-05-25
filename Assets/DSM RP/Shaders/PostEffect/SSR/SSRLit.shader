@@ -26,45 +26,37 @@ Shader "DSM RP/SSRLit"
         [NoScaleOffset] _EmissionMap("Emission", 2D) = "white" {}
         [HDR] _EmissionColor("Emission Color", Color) = (0,0,0,0)
         
-        // 使用的模板值
-        _StencilRef("StencilRef", Range(0, 255)) = 200
-        
         [HideInInspector] _MainTex("Texture for Lightmap", 2D) = "white" {}
 		[HideInInspector] _Color("Color for Lightmap", Color) = (0.5, 0.5, 0.5, 1.0)
     }
     SubShader
     {
-        HLSLINCLUDE
-        #include "../ShaderLibrary/Common.hlsl"
-        #include "LitInput.hlsl"
-        ENDHLSL
+        UsePass "DSM RP/Lit/LitPass"
 
-        Stencil
-        {
-            Ref [_StencilRef]
-            Comp Always
-            Pass Replace
-        }
-        
         Pass
         {
-            Tags {"LightModel" = "DSMLit"}
-            Blend [_SrcBlend] [_DstBlend]
-            ZWrite [_ZWrite]
+            Name "SSRMaskPass"
+            Tags {"LightMode" = "DSMLit"}
             
+            Cull Off
+            ZTest Always
+            ZWrite Off
             
             HLSLPROGRAM
-            #pragma multi_compile_instancing
-            #pragma shader_feature _CLIPPING
-            #pragma shader_feature _RECEIVE_SHADOWS
-            #pragma multi_compile _ _DIRECTIONAL_PCF3 _DIRECTIONAL_PCF5 _DIRECTIONAL_PCF7
-            #pragma multi_compile _ _CASCADE_BLEND_SOFT _CASCADE_BLEND_DITHER
-            #pragma multi_compile _ LIGHTMAP_ON 
-        	#pragma shader_feature _PREMULTIPLY_ALPHA    
-            #pragma vertex LitPassVertex
-            #pragma fragment LitPassFragment
-            #pragma target 5.0
-            #include "LitPass.hlsl"
+            #include "../PostEffectCommon.hlsl"
+            #include "../../../ShaderLibrary/Common.hlsl"
+            #pragma DefaultPostEffectVertex
+            #pragma SSRMaskFragment
+            
+            UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
+                UNITY_DEFINE_INSTANCED_PROP(float, _Smoothness)
+            UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
+            
+            float2 SSRMaskFragment(Varyings i) : SV_TARGET
+            {
+                return float2(1, UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Smoothness));
+            }
+            
             ENDHLSL
         }
     }

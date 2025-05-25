@@ -38,7 +38,8 @@ Shader "DSM RP/Lit"
         
         Pass
         {
-            Tags {"LightModel" = "DSMLit"}
+            Name "LitPass"
+            Tags {"LightMode" = "DSMLit"}
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
             

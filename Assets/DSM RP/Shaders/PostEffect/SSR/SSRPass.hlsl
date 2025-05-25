@@ -1,10 +1,13 @@
 #ifndef __SSRPASS_HLSL__
 #define __SSRPASS_HLSL__
 
-#include "../ShaderLibrary/Common.hlsl"
+#include "../../../ShaderLibrary/Common.hlsl"
 
 TEXTURE2D(_NormalTexture);
 SAMPLER(sampler_NormalTexture);
+
+TEXTURE2D(_HieZTexture);
+SAMPLER(sampler_HieZTexture);
 
 CBUFFER_START(_SSRCONSTANTS)
     int _RayMarchingMaxDistance;
@@ -104,7 +107,7 @@ float4 BinarySearch(Ray ray)
 }
 
 // 光线步进主体
-float4 ViewSpaceRayMarching(Ray ray)
+float4 ViewSpaceSSR(Ray ray)
 {
     float4 outCol = float4(0, 0, 0, 1);
     float3 endPos = ray.origin;
@@ -119,14 +122,53 @@ float4 ViewSpaceRayMarching(Ray ray)
 }
 
 
+float4 SSR2DRayMarching(
+    float2 currPosSS, float2 endPosSS, float2 offsetSS,
+    float3 currPosVS, float3 offsetVS,
+    float currK, float offsetK,
+    float stepDir, bool steep)
+{
+    const int marchingCount = _RayMarchingMaxDistance / _RayMarchingStep;
+    float2 invWH = 1.f / float2(GetCameraTexWidth(), GetCameraTexHeight());
+    float preZ = currPosVS.z / currK;
+    
+    [loop]
+    for (int iii = 0; (currPosSS.x * stepDir < endPosSS.x * stepDir) && iii < marchingCount; ++iii) {
+        currPosSS += offsetSS, currPosVS.z += offsetVS.z, currK += offsetK;
+        
+        float2 uv = steep ? currPosSS.yx : currPosSS.xy;
+        uv *= invWH;
+        #if UNITY_UV_STARTS_AT_TOP
+        uv.y = 1 - uv.y;    // 需要进行反转
+        #endif
+        float sceneZ = -GetCameraLinearDepth(uv);
+        
+        float minZ = preZ;
+        // 通过 K 获得当前位置的深度
+        //float maxZ = (currPosVS.z + 0.5f * currPosVS.z) / (currK + 0.5f * offsetK);
+        float maxZ = currPosVS.z / currK;
+        preZ = maxZ;
+        [flatten]
+        if (minZ > maxZ){
+            SwapFloat(minZ, maxZ);
+        }
+        bool inRange = all(0 <= uv && uv <= 1);
+        [branch]
+        if (minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold && inRange) {
+            float4 col = GetCameraColor(uv);
+            return col;
+        }
+    }
+
+    return float4(0, 0, 0, 1);
+}
 
 
 // 屏幕空间的 RayMarching，输入为视图空间的反射光线
-float4 ScreenSpaceRayMarching(Ray ray)
+float4 ScreenSpaceSRR(Ray ray)
 {
     [branch]
     if (_RayMarchingStep <= 0 || _RayMarchingMaxDistance <= 0) return float4(0, 0, 0, 1);
-    const int marchingCount = _RayMarchingMaxDistance / _RayMarchingStep;
 
     // 限制到近平面内
     const float nearPlaneZ = -0.001;
@@ -145,7 +187,6 @@ float4 ScreenSpaceRayMarching(Ray ray)
 
     // 变换到屏幕空间
     const float2 WH = float2(GetCameraTexWidth(), GetCameraTexHeight());
-    const float2 invWH = 1.0f / WH;
     float2 startSS = float2(startCS.x, startCS.y)  * 0.5 + 0.5;
     float2 endSS = float2(endCS.x, endCS.y)  * 0.5 + 0.5;
     startSS *= WH;
@@ -176,37 +217,9 @@ float4 ScreenSpaceRayMarching(Ray ray)
     float2 currSS = startSS;
     float3 currQ = startQ;
     float currK = startK;
-    float preZ = ray.origin.z;
     
-    [loop]
-    for (int iii = 0; (currSS.x * stepDir < endSS.x * stepDir) && iii < marchingCount; ++iii) {
-        currSS += offsetSS, currQ.z += offsetQ.z, currK += offsetK;
-        
-        float2 uv = steep ? currSS.yx : currSS.xy;
-        uv *= invWH;
-#if UNITY_UV_STARTS_AT_TOP
-        uv.y = 1 - uv.y;    // 需要进行反转
-#endif
-        float sceneZ = -GetCameraLinearDepth(uv);
-        
-        float minZ = preZ;
-        // 通过 K 获得当前位置的深度
-        //float maxZ = (currQ.z + 0.5f * offsetQ.z) / (currK + 0.5f * offsetK);
-        float maxZ = currQ.z / currK;
-        preZ = maxZ;
-        [flatten]
-        if (minZ > maxZ){
-            SwapFloat(minZ, maxZ);
-        }
-        bool inRange = all(0 <= uv && uv <= 1);
-        [branch]
-        if (minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold && inRange) {
-            float4 col = GetCameraColor(uv);
-            return col;
-        }
-    }
-
-    return float4(0, 0, 0, 1);
+    float4 refectCol = SSR2DRayMarching(currSS, endSS, offsetSS, currQ, offsetQ, currK, offsetK, stepDir, steep);
+    return refectCol;
 }
 
 
@@ -228,9 +241,16 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     Ray ray;
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;
-    float4 reflectCol = ScreenSpaceRayMarching(ray);
-
-    //return reflectCol;
+    float4 reflectCol;
+    #if defined(SCREENSPACE)
+    reflectCol = ScreenSpaceSRR(ray);
+    #elif defined(SCREENSPACEHIEZ)
+    reflectCol = 
+    #else
+    reflectCol = ViewSpaceSSR(ray);
+    #endif
+    
+    return reflectCol;
     return baseCol + reflectCol;
     //return lerp(baseCol, reflectCol, reflectCol);
 }

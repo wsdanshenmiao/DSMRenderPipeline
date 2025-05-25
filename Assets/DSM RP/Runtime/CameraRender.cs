@@ -157,6 +157,7 @@ namespace DSM
             };
             
             drawingSettings.SetShaderPassName(1, m_LitShaderTagId);
+            
             // 先绘制不透明体
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
             m_RenderContext.DrawRenderers(m_CullingResults, ref drawingSettings, ref filteringSettings);
