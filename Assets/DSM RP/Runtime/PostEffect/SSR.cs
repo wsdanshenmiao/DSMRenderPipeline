@@ -1,5 +1,3 @@
-using System;
-using Mono.Cecil;
 using UnityEngine.Rendering;
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -13,16 +11,22 @@ namespace DSM
         {
             ViewSpace = 0,
             ScreenSpace = 1,
-            ScreenSpaceHieZ = 2
+            ScreenSpaceHiz = 2
         }
+        
+        private Material m_Material;
+        [SerializeField] private ComputeShader m_GenerateHizComputeShader;
+        
+        [SerializeField] private int m_RayMarchingMaxDistance = 100;   // 最大步进次数
+        [SerializeField] private float m_RayMarchingStep = 0.1f;    // 每次步进的步频
+        [SerializeField] private float m_HitThreshold = 0.4f;
+        [SerializeField] private SSRMode m_SSRMode = SSRMode.ScreenSpaceHiz;
+        [SerializeField] private uint m_HizCount = 4;
+        [SerializeField] private uint m_HizStartLevel = 0;
+        [SerializeField] private uint m_HizEndLevel = 4;
 
-        private const string
-            m_SSRShaderName = "DSM RP/SSR",
-            m_GenerateHieZShaderName = "GenerateSSRHieZ";
-
-        private static readonly string[] m_SSRModeKeywords = {
-            "SCREENSPACE", "SCREENSPACEHIEZ"
-        };
+        private RenderTexture[] m_HizTextures = null;
+        private RenderTexture m_PackHizTexture = null;
         
         private static readonly int
             m_BackTextureId = Shader.PropertyToID("_BackTexture"),
@@ -30,23 +34,20 @@ namespace DSM
             m_RayMarchingMaxCountId = Shader.PropertyToID("_RayMarchingMaxDistance"),
             m_RayMarchingStepId = Shader.PropertyToID("_RayMarchingStep"),
             m_HitThresholdId = Shader.PropertyToID("_HitThreshold"),
-            m_HieZTextureId = Shader.PropertyToID("_HieZTexture"),
+            m_HizTextureId = Shader.PropertyToID("_HizTexture"),
             m_DepthTextureId = Shader.PropertyToID("_DepthTexture"),
-            m_StencilRefId = Shader.PropertyToID("_StencilRef");
-        
-        
-        
-        private Material m_Material;
-        [SerializeField] private ComputeShader m_GenerateHieZComputeShader;
-        
-        [SerializeField] private int m_RayMarchingMaxDistance = 100;   // 最大步进次数
-        [SerializeField] private float m_RayMarchingStep = 0.1f;    // 每次步进的步频
-        [SerializeField] private float m_HitThreshold = 0.4f;
-        [SerializeField] private SSRMode m_SSRMode = SSRMode.ScreenSpaceHieZ;
-        [SerializeField] private uint m_HieZCount = 4;
+            m_StencilRefId = Shader.PropertyToID("_StencilRef"),
+            m_HizStartLevelId = Shader.PropertyToID("_HizStartLevel"),
+            m_HizEndLevelId = Shader.PropertyToID("_HizEndLevel"),
+            m_HizCountId = Shader.PropertyToID("_HizCount");
 
-        private RenderTexture[] m_HieZTextures = null;
-        private RenderTexture m_PackHieZTexture = null;
+        private const string
+            m_SSRShaderName = "DSM RP/SSR",
+            m_GenerateHizShaderName = "GenerateSSRHiz";
+
+        private static readonly string[] m_SSRModeKeywords = {
+            "SCREENSPACE", "SCREENSPACEHIEZ"
+        };
         
         public override void Render(
             CommandBuffer cmd, 
@@ -54,8 +55,8 @@ namespace DSM
             RenderTargetIdentifier dest,
             Camera camera)
         {
-            if (m_GenerateHieZComputeShader == null) {
-                Debug.LogError("GenerateHieZComputeShader is missing");
+            if (m_GenerateHizComputeShader == null) {
+                Debug.LogError("GenerateHizComputeShader is missing");
                 return;
             }
             
@@ -63,43 +64,47 @@ namespace DSM
                 m_Material = CoreUtils.CreateEngineMaterial(Shader.Find(m_SSRShaderName));
             }
             
-            if (m_SSRMode == SSRMode.ScreenSpaceHieZ) {
+            if (m_SSRMode == SSRMode.ScreenSpaceHiz) {
                 int width = camera.pixelWidth, height = camera.pixelHeight;
-                m_HieZTextures = new RenderTexture[m_HieZCount];
-                m_PackHieZTexture = RenderTexture.GetTemporary(
+                m_HizCount = (uint)Mathf.Min(m_HizCount, Mathf.Log(Mathf.Min(width, height), 2));
+                m_HizTextures = new RenderTexture[m_HizCount];
+                m_PackHizTexture = RenderTexture.GetTemporary(
                     width, height, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
-                m_PackHieZTexture.useMipMap = true;
-                m_PackHieZTexture.autoGenerateMips = false;
-                m_PackHieZTexture.Create();
+                m_PackHizTexture.useMipMap = true;
+                m_PackHizTexture.autoGenerateMips = false;
+                m_PackHizTexture.Create();
                 
                 RenderTargetIdentifier depthTex = CameraRender.m_CameraDepthTextureId;
-                cmd.Blit(depthTex, m_PackHieZTexture);
+                cmd.Blit(depthTex, m_PackHizTexture);
                 // 需要手动生成，否则会被覆盖
-                m_PackHieZTexture.GenerateMips();
+                m_PackHizTexture.GenerateMips();
                 
                 width = width / 2;
                 height = height / 2;
                 
                 // 生成并设置层次深度
-                for (int i = 0; i < m_HieZCount; ++i, width /= 2, height /= 2) {
-                    m_HieZTextures[i] = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.RFloat);
-                    m_HieZTextures[i].enableRandomWrite = true;
-                    m_HieZTextures[i].Create();
+                for (int i = 0; i < m_HizCount; ++i, width /= 2, height /= 2) {
+                    m_HizTextures[i] = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.RFloat);
+                    m_HizTextures[i].enableRandomWrite = true;
+                    m_HizTextures[i].Create();
                     
-                    cmd.SetComputeTextureParam(m_GenerateHieZComputeShader, 0, m_HieZTextureId, m_HieZTextures[i]);
-                    cmd.SetComputeTextureParam(m_GenerateHieZComputeShader, 0, m_DepthTextureId, depthTex);
+                    cmd.SetComputeTextureParam(m_GenerateHizComputeShader, 0, m_HizTextureId, m_HizTextures[i]);
+                    cmd.SetComputeTextureParam(m_GenerateHizComputeShader, 0, m_DepthTextureId, depthTex);
                     
-                    cmd.DispatchCompute(m_GenerateHieZComputeShader, 0, m_HieZTextures[i].width, m_HieZTextures[i].height, 1);
+                    cmd.DispatchCompute(m_GenerateHizComputeShader, 0, m_HizTextures[i].width, m_HizTextures[i].height, 1);
 
-                    depthTex = m_HieZTextures[i]; 
-                    cmd.CopyTexture(depthTex, 0, 0, m_PackHieZTexture, 0, i + 1);
+                    depthTex = m_HizTextures[i];
+                    cmd.CopyTexture(depthTex, 0, 0, m_PackHizTexture, 0, i + 1);
                 }
                 
-                m_Material.SetTexture(m_HieZTextureId, m_PackHieZTexture);
+                m_Material.SetTexture(m_HizTextureId, m_PackHizTexture);
             }
             
             SetKeywords(cmd, m_SSRModeKeywords, (int)m_SSRMode - 1);
             
+            m_Material.SetInt(m_HizCountId, (int)m_HizCount);
+            m_Material.SetInt(m_HizStartLevelId, (int)Mathf.Min(m_HizStartLevel, m_HizCount));
+            m_Material.SetInt(m_HizEndLevelId, (int)Mathf.Min(m_HizEndLevel, m_HizStartLevel));
             m_Material.SetInt(m_RayMarchingMaxCountId, m_RayMarchingMaxDistance);
             m_Material.SetFloat(m_RayMarchingStepId, m_RayMarchingStep);
             m_Material.SetFloat(m_HitThresholdId, m_HitThreshold);
@@ -109,10 +114,11 @@ namespace DSM
             cmd.DrawProcedural(Matrix4x4.identity, m_Material, 0, MeshTopology.Triangles, 3);
 
 
-            if (m_SSRMode == SSRMode.ScreenSpaceHieZ) {
-                for (int i = 0; i < m_HieZTextures.Length; ++i) {
-                    RenderTexture.ReleaseTemporary(m_HieZTextures[i]);
+            if (m_SSRMode == SSRMode.ScreenSpaceHiz) {
+                for (int i = 0; i < m_HizTextures.Length; ++i) {
+                    RenderTexture.ReleaseTemporary(m_HizTextures[i]);
                 }
+                RenderTexture.ReleaseTemporary(m_PackHizTexture);
             }
         }
 

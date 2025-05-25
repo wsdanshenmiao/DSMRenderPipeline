@@ -6,13 +6,15 @@
 TEXTURE2D(_NormalTexture);
 SAMPLER(sampler_NormalTexture);
 
-TEXTURE2D(_HieZTexture);
-SAMPLER(sampler_HieZTexture);
+TEXTURE2D(_HizTexture);
 
 CBUFFER_START(_SSRCONSTANTS)
     int _RayMarchingMaxDistance;
     float _RayMarchingStep;
     float _HitThreshold;
+    int _HizStartLevel;
+    int _HizEndLevel;
+    int _HizCount;
 CBUFFER_END
 
 bool GetCurrDepthAndUV(float3 currPos, out float currDepth, out float2 uv)
@@ -122,6 +124,10 @@ float4 ViewSpaceSSR(Ray ray)
 }
 
 
+
+
+
+
 float4 SSR2DRayMarching(
     float2 currPosSS, float2 endPosSS, float2 offsetSS,
     float3 currPosVS, float3 offsetVS,
@@ -138,9 +144,9 @@ float4 SSR2DRayMarching(
         
         float2 uv = steep ? currPosSS.yx : currPosSS.xy;
         uv *= invWH;
-        #if UNITY_UV_STARTS_AT_TOP
+#if UNITY_UV_STARTS_AT_TOP
         uv.y = 1 - uv.y;    // 需要进行反转
-        #endif
+#endif
         float sceneZ = -GetCameraLinearDepth(uv);
         
         float minZ = preZ;
@@ -153,8 +159,9 @@ float4 SSR2DRayMarching(
             SwapFloat(minZ, maxZ);
         }
         bool inRange = all(0 <= uv && uv <= 1);
+        bool hit = minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold;
         [branch]
-        if (minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold && inRange) {
+        if (hit && inRange) {
             float4 col = GetCameraColor(uv);
             return col;
         }
@@ -163,6 +170,63 @@ float4 SSR2DRayMarching(
     return float4(0, 0, 0, 1);
 }
 
+float4 SSR2DRayMarchingWithHiz(
+    float2 currPosSS, float2 endPosSS, float2 offsetSS,
+    float3 currPosVS, float3 offsetVS,
+    float currK, float offsetK,
+    float stepDir, bool steep)
+{
+    const int marchingCount = _RayMarchingMaxDistance / _RayMarchingStep;
+    float2 invWH = 1.f / float2(GetCameraTexWidth(), GetCameraTexHeight());
+    float preZ = currPosVS.z / currK;
+
+    int level = _HizStartLevel;
+        
+    [loop]
+    for (int iii = 0; (currPosSS.x * stepDir < endPosSS.x * stepDir) && iii < marchingCount; ++iii) {
+        float levelMulti = exp2(level);
+        currPosSS += offsetSS * levelMulti, currPosVS.z += offsetVS.z * levelMulti, currK += offsetK * levelMulti;
+        
+        float2 uv = steep ? currPosSS.yx : currPosSS.xy;
+        uv *= invWH;
+        #if UNITY_UV_STARTS_AT_TOP
+        uv.y = 1 - uv.y;    // 需要进行反转
+        #endif
+        float sceneZ = SAMPLE_DEPTH_TEXTURE_LOD(_HizTexture, sampler_point_clamp, uv, level);
+        sceneZ = -LinearEyeDepth(sceneZ, _ZBufferParams);
+        
+        float minZ = preZ;
+        // 通过 K 获得当前位置的深度
+        //float maxZ = (currPosVS.z + 0.5f * currPosVS.z) / (currK + 0.5f * offsetK);
+        float maxZ = currPosVS.z / currK;
+        preZ = maxZ;
+        [flatten]
+        if (minZ > maxZ){
+            SwapFloat(minZ, maxZ);
+        }
+        
+        bool inRange = all(0 <= uv && uv <= 1);
+        bool hit = maxZ >= sceneZ - _HitThreshold;
+        [branch]
+        if (hit && inRange) {   // 击中物体
+            if (level <= _HizEndLevel) {    // 最后一层则直接返回
+                if (minZ <= sceneZ) {
+                    return GetCameraColor(uv);
+                }
+            }
+            else {  // 不是最后一层则回退并减小MipMap层数
+                currPosSS -= offsetSS * levelMulti, currPosVS.z -= offsetVS.z * levelMulti, currK -= offsetK * levelMulti;
+                preZ = currPosVS.z / currK;
+                --level;
+            }
+        }
+        else {  // 若击中则提高MipMap的层数并提高步频
+            level = min(_HizCount, level + 1);
+        }
+    }
+
+    return float4(0, 0, 0, 1);
+}
 
 // 屏幕空间的 RayMarching，输入为视图空间的反射光线
 float4 ScreenSpaceSRR(Ray ray)
@@ -217,9 +281,15 @@ float4 ScreenSpaceSRR(Ray ray)
     float2 currSS = startSS;
     float3 currQ = startQ;
     float currK = startK;
+
+    float4 reflectCol;
+#if defined(SCREENSPACEHIEZ)
+    reflectCol = SSR2DRayMarchingWithHiz(currSS, endSS, offsetSS, currQ, offsetQ, currK, offsetK, stepDir, steep);
+#elif defined(SCREENSPACE)
+    reflectCol = SSR2DRayMarching(currSS, endSS, offsetSS, currQ, offsetQ, currK, offsetK, stepDir, steep);
+#endif
     
-    float4 refectCol = SSR2DRayMarching(currSS, endSS, offsetSS, currQ, offsetQ, currK, offsetK, stepDir, steep);
-    return refectCol;
+    return reflectCol;
 }
 
 
@@ -242,10 +312,8 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;
     float4 reflectCol;
-    #if defined(SCREENSPACE)
+    #if defined(SCREENSPACE) || defined(SCREENSPACEHIEZ)
     reflectCol = ScreenSpaceSRR(ray);
-    #elif defined(SCREENSPACEHIEZ)
-    reflectCol = 
     #else
     reflectCol = ViewSpaceSSR(ray);
     #endif
