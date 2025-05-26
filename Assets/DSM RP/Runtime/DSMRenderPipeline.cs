@@ -1,47 +1,40 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace DSM
 {
     public class DSMRenderPipeline : RenderPipeline
     {
-        private CameraRender m_CameraRender = new CameraRender();
+        private readonly CameraRenderer m_CameraRenderer;
 
-        private bool m_UseDynamicBatching, m_UseGPUInstancing;
+        private DSMRenderPipelineSettings m_Settings;
 
-        private ShadowSetting m_ShadowSetting;
-
-        private PostEffectManager m_PostEffectManager;
+        private readonly RenderGraph m_RenderGraph = new RenderGraph("DSM SRP Render Graph"); 
         
         /// <summary>
         /// 需要设置优化策略
         /// </summary>
-        public DSMRenderPipeline(
-            bool useDynamicBatching, 
-            bool useGPUInstancing, 
-            bool useSRPBatcher,
-            ShadowSetting shadowSetting,
-            PostEffectManager postEffectManager)
+        public DSMRenderPipeline(DSMRenderPipelineSettings settings)
         {
-            m_UseDynamicBatching = useDynamicBatching;
-            m_UseGPUInstancing = useGPUInstancing;
-            GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBatcher;
+            m_Settings = settings;
+            GraphicsSettings.useScriptableRenderPipelineBatching = settings.m_UseSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
-            m_ShadowSetting = shadowSetting;
-            m_PostEffectManager = postEffectManager;
+            m_CameraRenderer = new CameraRenderer();
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
             foreach(Camera camera in cameras) {
-                m_CameraRender.Render(
-                    context, 
-                    camera, 
-                    m_UseDynamicBatching, 
-                    m_UseGPUInstancing,
-                    m_ShadowSetting,
-                    m_PostEffectManager);
+                m_CameraRenderer.Render(m_RenderGraph, context, camera, m_Settings);
             }
+            m_RenderGraph.EndFrame();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            m_RenderGraph.Cleanup();
         }
     }
 }

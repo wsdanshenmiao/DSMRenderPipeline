@@ -1,10 +1,11 @@
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace DSM
 {
-    public partial class CameraRender
+    public partial class CameraRenderer
     {   
         private ScriptableRenderContext m_RenderContext;    // 类似命令队列
         private Camera m_RenderCamera;
@@ -30,12 +31,10 @@ namespace DSM
             m_NormalTextureId = Shader.PropertyToID("_NormalTexture");
         
         public void Render(
+            RenderGraph renderGraph,
             ScriptableRenderContext context, 
             Camera camera, 
-            bool useDynamicBatching, 
-            bool useGPUInstancing,
-            ShadowSetting shadowSetting, 
-            PostEffectManager postEffectManager)
+            DSMRenderPipelineSettings settings)
         {
             if (context == null || camera == null) {
                 Debug.LogError("Context or Camera should no be null");
@@ -44,25 +43,25 @@ namespace DSM
             
             m_RenderContext = context;
             m_RenderCamera = camera;
-            m_PostEffectManager = postEffectManager;
+            m_PostEffectManager = settings.m_PostEffectManager;
             
             // 可能会增加场景物体，在剔除前进行
             PrepareBuffer();
             PrepareForSceneWindow();
-            if (!Cull(shadowSetting.m_MaxDistance)) return;
+            if (!Cull(settings.m_ShadowSetting.m_MaxDistance)) return;
             
             Debug.Log("Render Camera");
 
             m_CommandBuffer.BeginSample(m_SampleName);
             ExecuteBuffer();
             
-            m_Light.Setup(context, m_CullingResults, shadowSetting);
+            m_Light.Setup(context, m_CullingResults, settings.m_ShadowSetting);
             m_PostEffectManager.Setup(context, m_RenderCamera, m_CullingResults);
             
             m_CommandBuffer.EndSample(m_SampleName);
             Setup();
             
-            DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
+            DrawVisibleGeometry(settings.m_UseDynamicBatching, settings.m_UseGPUInstancing);
             DrawUnsupportedShaders();
             if (m_PostEffectManager.IsActive) {   // 进行屏幕后处理
                 m_CommandBuffer.SetGlobalTexture(m_NormalTextureId, m_NormalTexture);
@@ -72,7 +71,6 @@ namespace DSM
             DrawGizmos();
 
             Cleanup();
-            
             Submit();
         }
         

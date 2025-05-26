@@ -7,22 +7,12 @@ namespace DSM
     [CreateAssetMenu(menuName = "DSMRendering/DSM Render Pipeline")]
     public class DSMRenderPipelineAssets : RenderPipelineAsset
     {
-        // 可选优化方式
         [SerializeField]
-        private bool m_UseDynamicBatching = true, m_UseGPUInstancing = true, m_UseSRPBatcher = true;
+        private DSMRenderPipelineSettings m_Settings;
 
-        [SerializeField] private ShadowSetting m_ShadowSetting = default;
-        
-        [SerializeField] private PostEffectManager m_PostEffectManager = new PostEffectManager();
-        
         protected override RenderPipeline CreatePipeline()
         {
-            return new DSMRenderPipeline(
-                m_UseDynamicBatching, 
-                m_UseGPUInstancing, 
-                m_UseSRPBatcher,
-                m_ShadowSetting,
-                m_PostEffectManager);
+            return new DSMRenderPipeline(m_Settings);
         }
     }
 }

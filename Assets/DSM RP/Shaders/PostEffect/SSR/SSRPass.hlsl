@@ -207,9 +207,11 @@ float4 SSR2DRayMarchingWithHiz(
         
         bool inRange = all(0 <= uv && uv <= 1);
         bool hit = maxZ >= sceneZ - _HitThreshold;
-        [branch]
+        [flatten]
         if (hit && inRange) {   // 击中物体
+            [flatten]
             if (level <= _HizEndLevel) {    // 最后一层则直接返回
+                [branch]
                 if (minZ <= sceneZ) {
                     return GetCameraColor(uv);
                 }

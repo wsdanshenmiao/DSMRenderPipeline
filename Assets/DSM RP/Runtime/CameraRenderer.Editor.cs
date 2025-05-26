@@ -5,7 +5,7 @@ using UnityEngine.Profiling;
 
 namespace DSM
 {
-    partial class CameraRender
+    partial class CameraRenderer
     {
         static ShaderTagId[] m_LegacyShaderTagIds = {
             new ShaderTagId("Always"),

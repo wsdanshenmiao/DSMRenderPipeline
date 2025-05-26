@@ -36,7 +36,6 @@ namespace DSM
             m_HitThresholdId = Shader.PropertyToID("_HitThreshold"),
             m_HizTextureId = Shader.PropertyToID("_HizTexture"),
             m_DepthTextureId = Shader.PropertyToID("_DepthTexture"),
-            m_StencilRefId = Shader.PropertyToID("_StencilRef"),
             m_HizStartLevelId = Shader.PropertyToID("_HizStartLevel"),
             m_HizEndLevelId = Shader.PropertyToID("_HizEndLevel"),
             m_HizCountId = Shader.PropertyToID("_HizCount");
@@ -74,7 +73,7 @@ namespace DSM
                 m_PackHizTexture.autoGenerateMips = false;
                 m_PackHizTexture.Create();
                 
-                RenderTargetIdentifier depthTex = CameraRender.m_CameraDepthTextureId;
+                RenderTargetIdentifier depthTex = CameraRenderer.m_CameraDepthTextureId;
                 cmd.Blit(depthTex, m_PackHizTexture);
                 // 需要手动生成，否则会被覆盖
                 m_PackHizTexture.GenerateMips();
@@ -108,7 +107,7 @@ namespace DSM
             m_Material.SetInt(m_RayMarchingMaxCountId, m_RayMarchingMaxDistance);
             m_Material.SetFloat(m_RayMarchingStepId, m_RayMarchingStep);
             m_Material.SetFloat(m_HitThresholdId, m_HitThreshold);
-            cmd.SetGlobalTexture(CameraRender.m_CameraColorTextureId, src);
+            cmd.SetGlobalTexture(CameraRenderer.m_CameraColorTextureId, src);
             cmd.SetRenderTarget(dest, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
                 //CameraRender.m_CameraDepthTextureId, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store);
             cmd.DrawProcedural(Matrix4x4.identity, m_Material, 0, MeshTopology.Triangles, 3);

@@ -12,21 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1244a715bae1ed41ab4011487faa835, type: 3}
   m_Name: DSM Render Pipeline Assets
   m_EditorClassIdentifier: 
-  m_UseDynamicBatching: 0
-  m_UseGPUInstancing: 1
-  m_UseSRPBatcher: 1
-  m_ShadowSetting:
-    m_MaxDistance: 40
-    m_DistanceFade: 0.1
-    m_Directional:
-      m_AtlasSize: 1024
-      m_FilterMode: 1
-      m_CascadeBlendMode: 2
-      m_CascadeCount: 4
-      m_CascadeRatio1: 0.1
-      m_CascadeRatio2: 0.25
-      m_CascadeRatio3: 0.5
-      m_CascadeFade: 0.1
-  m_PostEffectManager:
-    m_PostEffects:
-    - {fileID: 11400000, guid: a682cf82565ac1d428521894211afad9, type: 2}
+  m_Settings:
+    m_UseDynamicBatching: 1
+    m_UseGPUInstancing: 1
+    m_UseSRPBatcher: 1
+    m_ShadowSetting:
+      m_MaxDistance: 100
+      m_DistanceFade: 0.1
+      m_Directional:
+        m_AtlasSize: 2048
+        m_FilterMode: 1
+        m_CascadeBlendMode: 0
+        m_CascadeCount: 4
+        m_CascadeRatio1: 0.1
+        m_CascadeRatio2: 0.25
+        m_CascadeRatio3: 0.5
+        m_CascadeFade: 0.1
+    m_PostEffectManager:
+      m_PostEffects:
+      - {fileID: 11400000, guid: a682cf82565ac1d428521894211afad9, type: 2}

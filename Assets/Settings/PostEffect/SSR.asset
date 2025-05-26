@@ -17,7 +17,7 @@ MonoBehaviour:
   m_RayMarchingMaxDistance: 40
   m_RayMarchingStep: 0.1
   m_HitThreshold: 0.2
-  m_SSRMode: 2
+  m_SSRMode: 1
   m_HizCount: 4
-  m_HizStartLevel: 0
+  m_HizStartLevel: 4
   m_HizEndLevel: 0
