@@ -12,15 +12,19 @@ namespace DSM{
     public class GizmosPass
     {
 #if UNITY_EDITOR
-        static readonly ProfilingSampler m_Sampler = new ProfilingSampler("Gizmos");
+        static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("Gizmos");
 
         Camera m_Camera;
+
+        TextureHandle m_DepthTexture;
 
         private void Render(RenderGraphContext context)
         {
             CommandBuffer cmd = context.cmd;
             ScriptableRenderContext renderContext = context.renderContext;
-
+/*            cmd.Blit(m_DepthTexture, BuiltinRenderTextureType.CameraTarget);
+            renderContext.ExecuteCommandBuffer(cmd);
+            cmd.Clear();*/
             renderContext.DrawGizmos(m_Camera, GizmoSubset.PreImageEffects);
             renderContext.DrawGizmos(m_Camera, GizmoSubset.PostImageEffects);
         }
@@ -28,14 +32,16 @@ namespace DSM{
         [Conditional("UNITY_EDITOR")]
         public static void Record(
             RenderGraph renderGraph,
-            Camera camera)
+            Camera camera,
+            in CameraRendererTextures cameraTextures)
         {
 #if UNITY_EDITOR
             if (Handles.ShouldRenderGizmos())
             {
                 using RenderGraphBuilder builder = renderGraph.AddRenderPass(
-                    m_Sampler.name, out GizmosPass pass, m_Sampler);
+                    sm_Sampler.name, out GizmosPass pass, sm_Sampler);
                 pass.m_Camera = camera;
+                pass.m_DepthTexture = builder.ReadTexture(cameraTextures.m_DepthTexture);
                 builder.SetRenderFunc<GizmosPass>(
                     static (pass, context) => pass.Render(context));
             }

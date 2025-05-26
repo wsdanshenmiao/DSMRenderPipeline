@@ -1,9 +1,23 @@
 using System;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 namespace DSM
 {
+    public readonly ref struct ShadowResources
+    {
+        public readonly TextureHandle m_DirectionalShadowMap;
+
+
+        public ShadowResources(
+            TextureHandle dirShadowMap)
+        {
+            m_DirectionalShadowMap = dirShadowMap;
+        }
+    }
+
+
     /// <summary>
     /// 阴影类，用于管理阴影
     /// </summary>
@@ -15,11 +29,14 @@ namespace DSM
             public float m_SlopeScaleBias;
             public float m_NearPlaneOffset;
         }
+
+        struct RenderInfo
+        {
+            public RendererListHandle m_Handle;
+        }
         
-        private const string m_BufferName = "Shadows";
-        private CommandBuffer m_CommandBuffer = new CommandBuffer{name=m_BufferName};
+        private CommandBuffer m_CommandBuffer;
         
-        private ScriptableRenderContext m_RenderContext;
         private CullingResults m_CullingResults;
         private ShadowSetting m_ShadowSetting;
 
@@ -30,6 +47,11 @@ namespace DSM
         // 可生成阴影的光源的索引
         private ShadowedDirectionalLight[] m_ShadowedDirectionalLights = 
                 new ShadowedDirectionalLight[m_MaxShadowedDirectionalLightCount];
+
+        private RenderInfo[] m_DirectionalRenderInfo = 
+            new RenderInfo[m_MaxShadowedDirectionalLightCount * m_MaxCascades];
+
+        private TextureHandle m_DirectionalShadowMap;
         
 
         private static int
@@ -48,22 +70,20 @@ namespace DSM
 
         private static Vector4[] m_CascadeData = new Vector4[m_MaxCascades];
 
-        private static string[] m_DirectionalFilterKeywords = {
-            "_DIRECTIONAL_PCF3",
-            "_DIRECTIONAL_PCF5",
-            "_DIRECTIONAL_PCF7",
+        private static GlobalKeyword[] m_DirectionalFilterKeywords = {
+            GlobalKeyword.Create("_DIRECTIONAL_PCF3"),
+            GlobalKeyword.Create("_DIRECTIONAL_PCF5"),
+            GlobalKeyword.Create("_DIRECTIONAL_PCF7"),
         };
-        private static string[] m_CascadeBlendKeywords = {
-            "_CASCADE_BLEND_SOFT",
-            "_CASCADE_BLEND_DITHER"
+        private static GlobalKeyword[] m_CascadeBlendKeywords = {
+            GlobalKeyword.Create("_CASCADE_BLEND_SOFT"),
+            GlobalKeyword.Create("_CASCADE_BLEND_DITHER")
         };
 
         public void Setup(
-            ScriptableRenderContext renderContext,
             CullingResults cullingResults,
             ShadowSetting shadowSetting)
         {
-            m_RenderContext = renderContext;
             m_CullingResults = cullingResults;
             m_ShadowSetting = shadowSetting;
             m_ShadowedDirectionalLightCount = 0;
@@ -89,20 +109,61 @@ namespace DSM
             return Vector3.zero;
         }
 
-        public void Render()
+        public void Render(RenderGraphContext context)
         {
-            Debug.Log("Rendering shadows");
+            //Debug.Log("Rendering shadows");
+
+            m_CommandBuffer = context.cmd;
+
             if (m_ShadowedDirectionalLightCount > 0) {
                 RenderDirectionalShadows();    
             }
-            else {
-                m_CommandBuffer.GetTemporaryRT(m_DirShadowAtlasId, 1, 1, 
-                    32, FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
+
+            context.renderContext.ExecuteCommandBuffer(m_CommandBuffer);
+            m_CommandBuffer.Clear();
+        }
+
+        public ShadowResources GetResources(
+            RenderGraph renderGraph,
+            RenderGraphBuilder builder,
+            ScriptableRenderContext constext)
+        {
+            int atliasSize = (int)m_ShadowSetting.m_Directional.m_AtlasSize;
+            TextureDesc texDesc = new TextureDesc(atliasSize, atliasSize)
+            {
+                depthBufferBits = DepthBits.Depth32,
+                isShadowMap = true,
+                name = "Directional Shadow Atlas",
+            };
+            
+            m_DirectionalShadowMap = m_ShadowedDirectionalLightCount > 0 ?
+                builder.WriteTexture(renderGraph.CreateTexture(texDesc)) :
+                renderGraph.defaultResources.defaultShadowTexture;
+
+
+            for(int index = 0; index < m_ShadowedDirectionalLightCount; ++index)
+            {
+                ShadowedDirectionalLight light = m_ShadowedDirectionalLights[index];
+                var shadowSettings = new ShadowDrawingSettings(
+                    m_CullingResults, light.m_VisibleLightIndex)
+                {
+                    useRenderingLayerMaskTest = true
+                };
+                for (int i = 0; i < m_ShadowSetting.m_Directional.m_CascadeCount; i++)
+                {
+                    ref RenderInfo info = ref m_DirectionalRenderInfo[index * m_MaxCascades + i];
+                    info.m_Handle = builder.UseRendererList(
+                        renderGraph.CreateShadowRendererList(ref shadowSettings));
+                }
             }
+
+            return new ShadowResources(m_DirectionalShadowMap);
         }
 
         public void RenderDirectionalShadows()
         {
+            const string samplerName = "Directional Shadows";
+
             // 获取ShadowMap的大小
             int tiles = m_ShadowedDirectionalLightCount * m_ShadowSetting.m_Directional.m_CascadeCount;
             int atlasSize = (int)m_ShadowSetting.m_Directional.m_AtlasSize;
@@ -111,14 +172,12 @@ namespace DSM
             int tileSize = atlasSize / split;
             
             // 创建一个32位双线性过滤的临时纹理
-            m_CommandBuffer.GetTemporaryRT(m_DirShadowAtlasId, atlasSize, atlasSize, 
-                32, FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
             m_CommandBuffer.SetRenderTarget(
-                m_DirShadowAtlasId, 
+                m_DirectionalShadowMap, 
                 RenderBufferLoadAction.DontCare,
                 RenderBufferStoreAction.Store);
             m_CommandBuffer.ClearRenderTarget(true, false, Color.clear);
-            m_CommandBuffer.BeginSample(m_BufferName);
+            m_CommandBuffer.BeginSample(samplerName);
 
             for (int i = 0; i < m_ShadowedDirectionalLightCount; i++) {
                 RenderDirectionalShadows(i, split, tileSize);
@@ -135,27 +194,11 @@ namespace DSM
             m_CommandBuffer.SetGlobalVectorArray(m_CascadeCullingSpheresId, m_CascadeCullingSpheres);
             m_CommandBuffer.SetGlobalMatrixArray(m_DirShadowMatricesId, m_DirShadowMatrices);
             m_CommandBuffer.SetGlobalVector(m_ShadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize));
-            
+
             SetKeywords(m_DirectionalFilterKeywords, (int)m_ShadowSetting.m_Directional.m_FilterMode - 1);
             SetKeywords(m_CascadeBlendKeywords, (int)m_ShadowSetting.m_Directional.m_CascadeBlendMode - 1);
             
-            m_CommandBuffer.EndSample(m_BufferName);
-            ExecuteBuffer();
-        }
-
-        public void CleanUp()
-        {
-            // 设置渲染对象并清理
-            m_CommandBuffer.ReleaseTemporaryRT(m_DirShadowAtlasId);
-            
-            ExecuteBuffer();
-        }
-
-        public void ExecuteBuffer()
-        {
-            // 关闭并清理命令列表
-            m_RenderContext.ExecuteCommandBuffer(m_CommandBuffer);
-            m_CommandBuffer.Clear();
+            m_CommandBuffer.EndSample(samplerName);
         }
         
         // 渲染ShadowMap
@@ -173,6 +216,8 @@ namespace DSM
             float cullingFactor = Mathf.Max(0f, 0.8f - m_ShadowSetting.m_Directional.m_CascadeFade);
             
             for (int i = 0; i < cascadeCount; i++) {
+                RenderInfo info = m_DirectionalRenderInfo[index * m_MaxCascades + i];
+
                 m_CullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
                     light.m_VisibleLightIndex, i, cascadeCount, ratios, tileSize, light.m_NearPlaneOffset,
                     out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
@@ -191,8 +236,7 @@ namespace DSM
                 
                 // 设定深度偏差
                 m_CommandBuffer.SetGlobalDepthBias(0, light.m_SlopeScaleBias);
-                ExecuteBuffer();
-                m_RenderContext.DrawShadows(ref shadowDrawingSettings);
+                m_CommandBuffer.DrawRendererList(info.m_Handle);
                 m_CommandBuffer.SetGlobalDepthBias(0, 0);
             }
         }
@@ -214,15 +258,10 @@ namespace DSM
         /// <summary>
         /// 设置 PCF 的关键字
         /// </summary>
-        private void SetKeywords(string[] keywords, int enableIndex)
+        private void SetKeywords(GlobalKeyword[] keywords, int enableIndex)
         {
             for (int i = 0; i < keywords.Length; ++i) {
-                if (i == enableIndex) {
-                    m_CommandBuffer.EnableShaderKeyword(keywords[i]);
-                }
-                else {
-                    m_CommandBuffer.DisableShaderKeyword(keywords[i]);
-                }
+                m_CommandBuffer.SetKeyword(keywords[i], i == enableIndex);
             }
         }
 

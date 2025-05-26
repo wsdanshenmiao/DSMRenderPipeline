@@ -48,7 +48,7 @@ namespace DSM
             "SCREENSPACE", "SCREENSPACEHIEZ"
         };
         
-        public override void Render(
+/*        public override void Render(
             CommandBuffer cmd, 
             RenderTargetIdentifier src, 
             RenderTargetIdentifier dest,
@@ -120,7 +120,7 @@ namespace DSM
                 RenderTexture.ReleaseTemporary(m_PackHizTexture);
             }
         }
-
+*/
 
         private void SetKeywords(CommandBuffer cmd, string[] keywords, int enableIndex)
         {

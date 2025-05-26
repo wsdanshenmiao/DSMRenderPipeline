@@ -14,5 +14,7 @@ namespace DSM {
         public ShadowSetting m_ShadowSetting = default;
 
         public PostEffectManager m_PostEffectManager = new PostEffectManager();
+
+        public RenderingLayerMask m_RenderLayerMask = RenderingLayerMask.defaultRenderingLayerMask;
     }
 }

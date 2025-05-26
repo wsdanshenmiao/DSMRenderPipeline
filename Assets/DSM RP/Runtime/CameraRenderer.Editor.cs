@@ -23,7 +23,7 @@ namespace DSM
         partial void PrepareForSceneWindow();
         partial void PrepareBuffer();
         
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
 
         private string m_SampleName{ get; set; }
         
@@ -76,7 +76,7 @@ namespace DSM
 #else
         private string m_SampleName => m_BufferName;
 
-#endif
+#endif*/
 
     }
 }

@@ -320,9 +320,9 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     reflectCol = ViewSpaceSSR(ray);
     #endif
     
-    return reflectCol;
-    return baseCol + reflectCol;
-    //return lerp(baseCol, reflectCol, reflectCol);
+    //return reflectCol;
+    //return baseCol + reflectCol;
+    return lerp(baseCol, reflectCol, reflectCol);
 }
 
 
