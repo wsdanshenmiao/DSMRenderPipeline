@@ -19,6 +19,7 @@ Shader "DSM RP/SSR"
         Pass
         {
             Name "SSR"
+            Tags {"LightMode" = "DSMLit"}
             
             HLSLPROGRAM
             #pragma multi_compile _ SCREENSPACE SCREENSPACEHIEZ

@@ -14,9 +14,9 @@ namespace DSM {
         public static readonly int
             m_CameraTextureSizeId = Shader.PropertyToID("_CameraTextureSize");
 
-        TextureHandle m_ColorTexture, m_DepthTexture, m_NormalTexture;
+        private TextureHandle m_ColorTexture, m_DepthTexture, m_NormalTexture;
 
-        Camera m_Camera;
+        private Camera m_Camera;
 
         private void Render(RenderGraphContext context)
         {
@@ -75,7 +75,7 @@ namespace DSM {
 
             TextureDesc texDesc = new TextureDesc(WH.x, WH.y)
             {
-                colorFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.LDR),
+                colorFormat = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR),
                 name = "CameraColorTexture"
             };
             TextureHandle colorTex = pass.m_ColorTexture = 
@@ -98,7 +98,7 @@ namespace DSM {
                 depthCopy = renderGraph.CreateTexture(texDesc);
             }
 
-            texDesc.format = GraphicsFormat.R32_SFloat;
+            texDesc.format = GraphicsFormat.R32G32B32A32_SFloat;
             texDesc.name = "NormalTexture";
             TextureHandle normalTex = pass.m_NormalTexture =
                 builder.WriteTexture(renderGraph.CreateTexture(texDesc));

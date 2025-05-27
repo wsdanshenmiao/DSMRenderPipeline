@@ -14,9 +14,9 @@ namespace DSM{
 #if UNITY_EDITOR
         static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("Gizmos");
 
-        Camera m_Camera;
+        private Camera m_Camera;
 
-        TextureHandle m_DepthTexture;
+        private TextureHandle m_DepthTexture;
 
         private void Render(RenderGraphContext context)
         {

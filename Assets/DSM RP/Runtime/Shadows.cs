@@ -119,6 +119,8 @@ namespace DSM
                 RenderDirectionalShadows();    
             }
 
+            m_CommandBuffer.SetGlobalTexture(m_DirShadowAtlasId, m_DirectionalShadowMap);
+
             context.renderContext.ExecuteCommandBuffer(m_CommandBuffer);
             m_CommandBuffer.Clear();
         }

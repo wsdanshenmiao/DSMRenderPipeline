@@ -7,7 +7,7 @@ namespace DSM {
     {
         private static readonly ProfilingSampler sm_Sampler = new("Final");
 
-        TextureHandle m_ColorTexture;
+        private TextureHandle m_ColorTexture;
 
         void Render(RenderGraphContext context)
         {

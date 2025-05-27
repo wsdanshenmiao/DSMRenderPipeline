@@ -59,6 +59,9 @@ namespace DSM
                     renderGraph, cullingResults, camera, renderingLayerMask,
                     false, cameraRendererTexs, lightResources);
 
+                settings.m_PostEffectManager.Record(
+                    renderGraph, cullingResults, camera, context, cameraRendererTexs);
+
                 UnsupportedShadersPass.Record(renderGraph, cullingResults, camera);
 
                 FinalPass.Record(renderGraph, cameraRendererTexs);

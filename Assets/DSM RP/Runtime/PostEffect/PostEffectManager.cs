@@ -9,7 +9,7 @@ namespace DSM
     [Serializable] 
     public class PostEffectManager
     {
-        public class PostEffect : ScriptableObject, IComparable<PostEffect>
+        public abstract class PostEffect : ScriptableObject, IComparable<PostEffect>
         {
             private int m_Weight = 0;
             protected Material m_Material;
@@ -23,19 +23,19 @@ namespace DSM
                 return m_Weight.CompareTo(other.m_Weight);
             }
 
-            virtual public void Render(RenderGraphContext context) { }
+            abstract protected void Render(RenderGraphContext context);
 
-            virtual public void Record(
+            abstract public void Record(
                 RenderGraph renderGraph,
                 CullingResults cullingResults,
                 Camera camera,
                 ScriptableRenderContext renderContext,
-                in CameraRendererTextures cameraTextures) { }
+                in CameraRendererTextures cameraTextures);
         }
         
-        [SerializeField] private List<PostEffect> sm_PostEffects = new();
+        [SerializeField] private List<PostEffect> m_PostEffects = new();
         
-        public bool IsActive => sm_PostEffects != null;
+        public bool IsActive => m_PostEffects != null && m_PostEffects.Count > 0;
         
 
 
@@ -51,16 +51,14 @@ namespace DSM
         {
             //Debug.Log("Render PostEffect");
             if(!IsActive) return;
+            //Debug.Log("Active");
 
-            RenderTargetIdentifier[] rtIdentifier = new RenderTargetIdentifier[2];
-            rtIdentifier[0] = cameraTextures.m_ColorTexture;
-            rtIdentifier[1] = BuiltinRenderTextureType.CameraTarget;
-            sm_PostEffects.Sort(); // 根据后处理的权重进行排序
+            m_PostEffects.Sort(); // 根据后处理的权重进行排序
             
-            foreach(PostEffect postEffect in sm_PostEffects)
+            foreach(PostEffect postEffect in m_PostEffects)
             {
                 if(postEffect == null) continue;
-
+                
                 postEffect.Record(
                     renderGraph,
                     cullingResults, 

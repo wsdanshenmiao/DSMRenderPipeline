@@ -25,7 +25,7 @@ namespace DSM {
 
         private int m_DirLightCount;
 
-        Shadows m_Shadows = new Shadows();
+        private Shadows m_Shadows = new Shadows();
 
         static readonly private int
             m_DirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),

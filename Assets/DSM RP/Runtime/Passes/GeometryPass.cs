@@ -11,7 +11,7 @@ namespace DSM
             sm_OpaqueSampler = new ProfilingSampler("Opaque Geometry"),
             sm_TransparentSampler = new ProfilingSampler("Transparent Geometry");
 
-        private static readonly ShaderTagId[] shaderTagIDs = {
+        private static readonly ShaderTagId[] m_ShaderTagIDs = {
             new("SRPDefaultUnlit"),
             new("DSMLit")
         };
@@ -40,7 +40,7 @@ namespace DSM
                 sampler.name, out GeometryPass pass, sampler);
 
             pass.m_RenderList = builder.UseRendererList(renderGraph.CreateRendererList(
-                new RendererListDesc(shaderTagIDs, cullingResults, camera) {
+                new RendererListDesc(m_ShaderTagIDs, cullingResults, camera) {
                     sortingCriteria = opaque ?
                         SortingCriteria.CommonOpaque :
                         SortingCriteria.CommonTransparent,

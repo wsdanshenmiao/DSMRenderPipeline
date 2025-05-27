@@ -7,6 +7,11 @@ namespace DSM {
     /// </summary>
     public readonly ref struct CameraRendererTextures
     {
+        public static readonly int
+            m_CameraColorTextureId = Shader.PropertyToID("_CameraColorTexture"),
+            m_CameraDepthTextureId = Shader.PropertyToID("_CameraDepthTexture"),
+            m_NormalTextureId = Shader.PropertyToID("_NormalTexture");
+
         public readonly TextureHandle
             m_ColorTexture, m_DepthTexture, m_NormalTexture,
             m_ColorCopy, m_DepthCopy;

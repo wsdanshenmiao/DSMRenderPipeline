@@ -8,7 +8,7 @@ namespace DSM{
     {
         static readonly ProfilingSampler sm_Sampler = new("Skybox");
 
-        RendererListHandle m_RenderList;
+        private RendererListHandle m_RenderList;
 
         void Render(RenderGraphContext context)
         {
