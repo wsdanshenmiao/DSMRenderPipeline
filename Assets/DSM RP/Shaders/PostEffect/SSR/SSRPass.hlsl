@@ -148,7 +148,7 @@ float4 SSR2DRayMarching(
         uv.y = 1 - uv.y;    // 需要进行反转
 #endif
         float sceneZ = -GetCameraLinearDepth(uv);
-        
+
         float minZ = preZ;
         // 通过 K 获得当前位置的深度
         //float maxZ = (currPosVS.z + 0.5f * currPosVS.z) / (currK + 0.5f * offsetK);
@@ -162,8 +162,7 @@ float4 SSR2DRayMarching(
         bool hit = minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold;
         [branch]
         if (hit && inRange) {
-            float4 col = GetCameraColor(uv);
-            return col;
+            return GetCameraColor(uv);
         }
     }
 
@@ -309,7 +308,7 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     
     float4 baseCol = GetCameraColor(input.uv);
     
-    const float posUP = 0.05;
+    const float posUP = 0.02;
     Ray ray;
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;
@@ -320,7 +319,7 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     reflectCol = ViewSpaceSSR(ray);
     #endif
     
-    //return reflectCol;
+    return reflectCol;
     //return baseCol + reflectCol;
     return lerp(baseCol, reflectCol, reflectCol);
 }

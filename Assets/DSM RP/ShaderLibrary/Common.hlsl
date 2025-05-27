@@ -51,13 +51,18 @@ float4 GetCameraColor(float2 uv)
 float3 GetWorldPosition(float2 uv)
 {
     float4 posCS = float4(uv * 2 - 1, GetCameraDepth(uv), 1);
-    #if UNITY_UV_STARTS_AT_TOP
+#if UNITY_UV_STARTS_AT_TOP
     posCS.y *= -1;
-    #endif
+#endif
 
+#if REQUIRE_POSITION_VS
     float4 posVS = mul(Inverse(UNITY_MATRIX_P), posCS);
     posVS /= posVS.w;
     float3 posWS = mul(UNITY_MATRIX_I_V, posVS).xyz;
+#else
+    float4 posWS = mul(Inverse(UNITY_MATRIX_VP), posCS);
+    posWS /= posWS.w;
+#endif
     
     return posWS.xyz;
 }

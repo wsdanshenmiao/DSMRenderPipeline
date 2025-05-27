@@ -125,6 +125,7 @@ namespace DSM
             m_Material.SetFloat(m_RayMarchingStepId, m_RayMarchingStep);
             m_Material.SetFloat(m_HitThresholdId, m_HitThreshold);
             cmd.SetGlobalTexture(CameraRendererTextures.m_CameraColorTextureId, m_ColorTexture);
+            cmd.SetGlobalTexture(CameraRendererTextures.m_CameraDepthTextureId, m_DepthTexture);
             cmd.SetGlobalTexture(CameraRendererTextures.m_NormalTextureId, m_NormalTexture);
             cmd.SetRenderTarget(m_TmpTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
                 //CameraRender.m_CameraDepthTextureId, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store);
@@ -169,7 +170,7 @@ namespace DSM
             texDesc.format = GraphicsFormat.R32_SFloat;
             texDesc.name = "Package Hiz Texture";
             texDesc.useMipMap = true;
-            texDesc.autoGenerateMips = false;
+            texDesc.autoGenerateMips = false;   // 不能自动生成MipMap，否则拷贝的会被覆盖
             pass.m_PackageHizTexture = builder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
 
             // Hiz纹理
