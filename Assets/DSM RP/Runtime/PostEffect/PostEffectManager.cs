@@ -33,6 +33,8 @@ namespace DSM
                 in CameraRendererTextures cameraTextures);
         }
         
+        private static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("PostEffect");
+        
         [SerializeField] private List<PostEffect> m_PostEffects = new();
         
         public bool IsActive => m_PostEffects != null && m_PostEffects.Count > 0;
@@ -53,6 +55,8 @@ namespace DSM
             if(!IsActive) return;
             //Debug.Log("Active");
 
+            using var groupSampler = new RenderGraphProfilingScope(renderGraph, sm_Sampler);
+            
             m_PostEffects.Sort(); // 根据后处理的权重进行排序
             
             foreach(PostEffect postEffect in m_PostEffects)

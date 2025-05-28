@@ -31,7 +31,7 @@ Shader "DSM RP/SSRLit"
     }
     SubShader
     {
-        UsePass "DSM RP/Lit/LitPass"
+        UsePass "DSM RP/Lit/Lit"
 
         Pass
         {

@@ -12,6 +12,7 @@ CBUFFER_START(_SSRCONSTANTS)
     int _RayMarchingMaxDistance;
     float _RayMarchingStep;
     float _HitThreshold;
+    float _BlendFactor;
     int _HizStartLevel;
     int _HizEndLevel;
     int _HizCount;
@@ -299,7 +300,7 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     // 获取RayMarching所需的信息
     float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
     [branch]
-    if (all(normal == 0)) return float4(0, 0, 0, 1);    // 排除天空盒
+    if (all(normal == 0)) return float4(0, 0, 0, _BlendFactor);    // 排除天空盒
     normal = normal * 2 - 1;
     normal = normalize(mul((float3x3)unity_MatrixV, normal));
     float3 posVS = GetViewPosition(input.uv);
@@ -313,15 +314,14 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;
     float4 reflectCol;
-    #if defined(SCREENSPACE) || defined(SCREENSPACEHIEZ)
+#if defined(SCREENSPACE) || defined(SCREENSPACEHIEZ)
     reflectCol = ScreenSpaceSRR(ray);
-    #else
+#else
     reflectCol = ViewSpaceSSR(ray);
-    #endif
+#endif
+    reflectCol.a = _BlendFactor;
     
     return reflectCol;
-    //return baseCol + reflectCol;
-    return lerp(baseCol, reflectCol, reflectCol);
 }
 
 
