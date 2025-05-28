@@ -30,7 +30,7 @@ MonoBehaviour:
         m_CascadeFade: 0.1
     m_PostEffectManager:
       m_PostEffects:
-      - {fileID: 11400000, guid: a682cf82565ac1d428521894211afad9, type: 2}
+      - {fileID: 11400000, guid: 5bf2e45a5f028a646a9bba2483bbd144, type: 2}
     m_RenderLayerMask:
       serializedVersion: 0
       m_Bits: 4294967295

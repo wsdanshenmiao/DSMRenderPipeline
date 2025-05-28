@@ -8,6 +8,9 @@ SAMPLER(sampler_NormalTexture);
 
 TEXTURE2D(_HizTexture);
 
+TEXTURE2D(_MaskTexture);
+SAMPLER(sampler_MaskTexture);
+
 CBUFFER_START(_SSRCONSTANTS)
     int _RayMarchingMaxDistance;
     float _RayMarchingStep;
@@ -298,10 +301,14 @@ float4 ScreenSpaceSRR(Ray ray)
 
 float4 SSRPassFragment(Varyings input) : SV_TARGET
 {
+    float4 reflectCol = float4(0, 0, 0, _BlendFactor);
+    float mask = SAMPLE_TEXTURE2D(_MaskTexture, sampler_MaskTexture, input.uv).r;
+    if (mask == 0) return reflectCol;
+    
     // 获取RayMarching所需的信息
     float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
     [branch]
-    if (all(normal == 0)) return float4(0, 0, 0, _BlendFactor);    // 排除天空盒
+    if (all(normal == 0)) return reflectCol;    // 排除天空盒
     normal = normal * 2 - 1;
     normal = normalize(mul((float3x3)unity_MatrixV, normal));
     float3 posVS = GetViewPosition(input.uv);
@@ -314,7 +321,6 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
     Ray ray;
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;
-    float4 reflectCol;
 #if defined(SCREENSPACE) || defined(SCREENSPACEHIEZ)
     reflectCol = ScreenSpaceSRR(ray);
 #else

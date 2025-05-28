@@ -3,7 +3,6 @@ using UnityEngine;
 using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RendererUtils;
-using static UnityEditor.ObjectChangeEventStream;
 
 namespace DSM
 {
@@ -38,10 +37,9 @@ namespace DSM
             RenderingLayerMask.defaultRenderingLayerMask;
         public ComputeShader m_GenerateHizComputeShader;
 
-        public override PostEffectManager.PostEffect CreatePostEffect()
+        public override PostEffectManager.PostEffect GetPostEffect()
         {
             if(m_Pass == null) { m_Pass = new SSRPass(this); }
-            else { m_Pass.Setup(this); }
             return m_Pass;
         }
     }
@@ -71,11 +69,11 @@ namespace DSM
             m_DepthTextureId = Shader.PropertyToID("_DepthTexture"),
             m_HizStartLevelId = Shader.PropertyToID("_HizStartLevel"),
             m_HizEndLevelId = Shader.PropertyToID("_HizEndLevel"),
-            m_HizCountId = Shader.PropertyToID("_HizCount");
+            m_HizCountId = Shader.PropertyToID("_HizCount"),
+            m_MaskTextureId = Shader.PropertyToID("_MaskTexture");
 
-        private static readonly string 
-            m_SSRShaderName = "DSM RP/SSR",
-            m_SSRLitShaderName = "DSM RP/SSRLit";
+        private static readonly Material m_SSRLitMaterial = 
+            CoreUtils.CreateEngineMaterial(Shader.Find("DSM RP/SSRLit"));
 
         private static readonly ShaderTagId m_ShaderTagID = new("DSMLit");
 
@@ -83,11 +81,15 @@ namespace DSM
             "SCREENSPACE", "SCREENSPACEHIEZ"
         };
 
-        public SSRPass() { }
+        public SSRPass()
+        {
+            m_Material = CoreUtils.CreateEngineMaterial(Shader.Find("DSM RP/SSR"));
+        }
 
         public SSRPass(SSRPassSetting setting)
         {
             m_Setting = setting;
+            m_Material = CoreUtils.CreateEngineMaterial(Shader.Find("DSM RP/SSR"));
         }
 
         public void Setup(SSRPassSetting setting)
@@ -104,8 +106,6 @@ namespace DSM
                 return;
             }
             
-            m_Material = m_Material == null ? 
-                CoreUtils.CreateEngineMaterial(Shader.Find(m_SSRShaderName)) : m_Material;
             
             if (m_Setting.m_SSRMode == SSRPassSetting.SSRMode.ScreenSpaceHiz) {
                 int width = m_Camera.pixelWidth, height = m_Camera.pixelHeight;
@@ -132,8 +132,9 @@ namespace DSM
                 m_Material.SetTexture(m_HizTextureId, m_PackageHizTexture);
             }
             
-            //cmd.SetRenderTarget(m_MaskTexture);
-            //cmd.DrawRendererList(m_RenderList);
+            cmd.SetRenderTarget(m_MaskTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                m_DepthTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            cmd.DrawRendererList(m_RenderList);
             
             SetKeywords(cmd, m_SSRModeKeywords, (int)m_Setting.m_SSRMode - 1);
             
@@ -145,9 +146,11 @@ namespace DSM
             m_Material.SetFloat(m_HitThresholdId, m_Setting.m_HitThreshold);
             m_Material.SetFloat(m_BlendFactorId, m_Setting.m_BlendFactor);
 
-            cmd.SetGlobalTexture(CameraRendererTextures.m_CameraColorTextureId, m_SrcTexture);
-            cmd.SetGlobalTexture(CameraRendererTextures.m_CameraDepthTextureId, m_DepthTexture);
-            cmd.SetGlobalTexture(CameraRendererTextures.m_NormalTextureId, m_NormalTexture);
+            m_Material.SetTexture(CameraRendererTextures.m_CameraColorTextureId, m_SrcTexture);
+            m_Material.SetTexture(CameraRendererTextures.m_CameraDepthTextureId, m_DepthTexture);
+            m_Material.SetTexture(CameraRendererTextures.m_NormalTextureId, m_NormalTexture);
+            m_Material.SetTexture(m_MaskTextureId, m_MaskTexture);
+            
             cmd.SetRenderTarget(m_DstTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             
             cmd.DrawProcedural(Matrix4x4.identity, m_Material, 0, MeshTopology.Triangles, 3);
@@ -205,15 +208,15 @@ namespace DSM
                     renderGraph.CreateTexture(texDesc));
             }
 
-            pass.m_RenderList = m_RenderList = ssrBuilder.UseRendererList(renderGraph.CreateRendererList(
+            pass.m_RenderList = ssrBuilder.UseRendererList(renderGraph.CreateRendererList(
                 new RendererListDesc(m_ShaderTagID, cullingResults, camera)
                 {
                     renderQueueRange = RenderQueueRange.all,
                     renderingLayerMask = m_Setting.m_RenderingLayerMask,
-                    overrideShader = Shader.Find(m_SSRLitShaderName),
-                    overrideShaderPassIndex = 1
+                    overrideMaterial = m_SSRLitMaterial,
+                    overrideMaterialPassIndex = 1
                 }));
-
+            
             ssrBuilder.SetRenderFunc<SSRPass>(
                 static (pass, context) => pass.Render(context));
             

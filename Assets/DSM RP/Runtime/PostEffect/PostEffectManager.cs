@@ -20,7 +20,7 @@ namespace DSM
                 return m_Weight.CompareTo(other.m_Weight);
             }
 
-            public abstract PostEffect CreatePostEffect();
+            public abstract PostEffect GetPostEffect();
         }
             
         public abstract class PostEffect
@@ -69,7 +69,7 @@ namespace DSM
             {
                 if(setting == null) continue;
                 
-                setting.CreatePostEffect().Record(
+                setting.GetPostEffect().Record(
                     renderGraph,
                     cullingResults, 
                     camera, 
