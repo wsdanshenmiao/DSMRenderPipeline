@@ -140,7 +140,8 @@ float4 SSR2DRayMarching(
     float preZ = currPosVS.z / currK;
     
     [loop]
-    for (int iii = 0; (currPosSS.x * stepDir < endPosSS.x * stepDir) && iii < marchingCount; ++iii) {
+    for (int iii = 0; (currPosSS.x * stepDir < endPosSS.x * stepDir) && iii < marchingCount; ++iii)
+    {
         currPosSS += offsetSS, currPosVS.z += offsetVS.z, currK += offsetK;
         
         float2 uv = steep ? currPosSS.yx : currPosSS.xy;
@@ -152,7 +153,7 @@ float4 SSR2DRayMarching(
 
         float minZ = preZ;
         // 通过 K 获得当前位置的深度
-        //float maxZ = (currPosVS.z + 0.5f * currPosVS.z) / (currK + 0.5f * offsetK);
+        //float maxZ = (currPosVS.z + 0.5f * offsetVS.z) / (currK + 0.5f * offsetK);
         float maxZ = currPosVS.z / currK;
         preZ = maxZ;
         [flatten]

@@ -9,19 +9,25 @@ namespace DSM
     [Serializable] 
     public class PostEffectManager
     {
-        public abstract class PostEffect : ScriptableObject, IComparable<PostEffect>
+        public abstract class PostEffectSetting : ScriptableObject, IComparable<PostEffectSetting>
         {
-            private int m_Weight = 0;
-            protected Material m_Material;
-        
-            public Material Material { get { return m_Material; } }
-
-            public int CompareTo(PostEffect other)
+            public int m_Weight = 0;
+            
+            public int CompareTo(PostEffectSetting other)
             {
                 if (ReferenceEquals(this, other)) return 0;
                 if (other is null) return 1;
                 return m_Weight.CompareTo(other.m_Weight);
             }
+
+            public abstract PostEffect CreatePostEffect();
+        }
+            
+        public abstract class PostEffect
+        {
+            protected Material m_Material;
+        
+            public Material Material { get { return m_Material; } }
 
             abstract protected void Render(RenderGraphContext context);
 
@@ -35,7 +41,7 @@ namespace DSM
         
         private static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("PostEffect");
         
-        [SerializeField] private List<PostEffect> m_PostEffects = new();
+        [SerializeField] private List<PostEffectSetting> m_PostEffects = new();
         
         public bool IsActive => m_PostEffects != null && m_PostEffects.Count > 0;
         
@@ -59,10 +65,11 @@ namespace DSM
             
             m_PostEffects.Sort(); // 根据后处理的权重进行排序
             
-            foreach(PostEffect postEffect in m_PostEffects)
+            foreach(PostEffectSetting setting in m_PostEffects)
             {
-                if(postEffect == null) continue;
+                if(setting == null) continue;
                 
+                var postEffect = setting.CreatePostEffect();
                 postEffect.Record(
                     renderGraph,
                     cullingResults, 
