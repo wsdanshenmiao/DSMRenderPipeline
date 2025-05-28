@@ -69,8 +69,7 @@ namespace DSM
             {
                 if(setting == null) continue;
                 
-                var postEffect = setting.CreatePostEffect();
-                postEffect.Record(
+                setting.CreatePostEffect().Record(
                     renderGraph,
                     cullingResults, 
                     camera, 

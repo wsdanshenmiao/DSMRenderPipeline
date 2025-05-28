@@ -10,8 +10,8 @@ namespace DSM
     [CreateAssetMenu(menuName = "Rendering/Custom PostEffect/SSR")]
     public class SSRPassSetting : PostEffectManager.PostEffectSetting
     {
-        private static SSRPass m_Pass;
-        
+        private static SSRPass m_Pass = null;
+
         public enum SSRMode
         {
             ViewSpace = 0,
@@ -20,13 +20,13 @@ namespace DSM
         }
 
         [Header("Marching Settings")]
-        public int m_RayMarchingMaxDistance = 100;   // 最大步进次数
+        public int m_RayMarchingMaxDistance = 40;   // 最大步进次数
         [Range(0, float.MaxValue)] public float m_RayMarchingStep = 0.1f;    // 每次步进的步频
         [Range(0, 1)] public float m_HitThreshold = 0.4f;
         [Header("Hiz Settings")]
         public uint m_HizCount = 4;
         public uint m_HizStartLevel = 0;
-        public uint m_HizEndLevel = 4;
+        public uint m_HizEndLevel = 0;
         [Header("SSR Settings")]
         [Range(0, 1)] public float m_BlendFactor = 1;
         public SSRMode m_SSRMode = SSRMode.ScreenSpaceHiz;
@@ -37,10 +37,11 @@ namespace DSM
         public RenderingLayerMask m_RenderingLayerMask = 
             RenderingLayerMask.defaultRenderingLayerMask;
         public ComputeShader m_GenerateHizComputeShader;
-        
+
         public override PostEffectManager.PostEffect CreatePostEffect()
         {
-            if(m_Pass == null) { m_Pass = new SSRPass(this);  }
+            if(m_Pass == null) { m_Pass = new SSRPass(this); }
+            else { m_Pass.Setup(this); }
             return m_Pass;
         }
     }
@@ -55,6 +56,7 @@ namespace DSM
             m_DepthTexture, m_NormalTexture;
         private TextureHandle[] m_HizTextures;
         private TextureHandle m_PackageHizTexture;
+        private TextureHandle m_MaskTexture;
 
         private RendererListHandle m_RenderList;
 
@@ -72,9 +74,10 @@ namespace DSM
             m_HizCountId = Shader.PropertyToID("_HizCount");
 
         private static readonly string 
-            m_SSRShaderName = "DSM RP/SSR";
+            m_SSRShaderName = "DSM RP/SSR",
+            m_SSRLitShaderName = "DSM RP/SSRLit";
 
-        private static readonly string m_ShaderTagID = "DSMLit";
+        private static readonly ShaderTagId m_ShaderTagID = new("DSMLit");
 
         private static readonly string[] m_SSRModeKeywords = {
             "SCREENSPACE", "SCREENSPACEHIEZ"
@@ -87,7 +90,7 @@ namespace DSM
             m_Setting = setting;
         }
 
-        private void Setup(SSRPassSetting setting)
+        public void Setup(SSRPassSetting setting)
         {
             m_Setting = setting;
         }
@@ -128,6 +131,9 @@ namespace DSM
                 
                 m_Material.SetTexture(m_HizTextureId, m_PackageHizTexture);
             }
+            
+            //cmd.SetRenderTarget(m_MaskTexture);
+            //cmd.DrawRendererList(m_RenderList);
             
             SetKeywords(cmd, m_SSRModeKeywords, (int)m_Setting.m_SSRMode - 1);
             
@@ -173,7 +179,12 @@ namespace DSM
                 name = "SSRTmp Texture"
             };
             pass.m_DstTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
-
+            
+            // 遮罩纹理
+            texDesc.name = "MaskTexture";
+            texDesc.format = GraphicsFormat.R8_SNorm;
+            pass.m_MaskTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
+            
             // 打包好的Hiz纹理
             texDesc.format = GraphicsFormat.R32_SFloat;
             texDesc.name = "Package Hiz Texture";
@@ -195,16 +206,17 @@ namespace DSM
             }
 
             pass.m_RenderList = m_RenderList = ssrBuilder.UseRendererList(renderGraph.CreateRendererList(
-                new RendererListDesc(new ShaderTagId(m_ShaderTagID), cullingResults, camera)
+                new RendererListDesc(m_ShaderTagID, cullingResults, camera)
                 {
                     renderQueueRange = RenderQueueRange.all,
-                    renderingLayerMask = m_Setting.m_RenderingLayerMask
+                    renderingLayerMask = m_Setting.m_RenderingLayerMask,
+                    overrideShader = Shader.Find(m_SSRLitShaderName),
+                    overrideShaderPassIndex = 1
                 }));
 
             ssrBuilder.SetRenderFunc<SSRPass>(
                 static (pass, context) => pass.Render(context));
-
-
+            
             BlendSetting blendSetting = new BlendSetting(
                 pass.m_DstTexture, pass.m_SrcTexture,
                 pass.m_Setting.m_SrcBlend, pass.m_Setting.m_DstBlend, pass.m_Setting.m_BlendOp);
