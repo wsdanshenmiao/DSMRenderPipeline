@@ -3,48 +3,54 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
+using UnityEngine.Serialization;
 
 namespace DSM
 {
+    public abstract class PostEffectSetting : ScriptableObject, IComparable<PostEffectSetting>
+     {
+         public int m_Weight = 0;
+         public bool m_Enable = true;
+         
+         public int CompareTo(PostEffectSetting other)
+         {
+             if (ReferenceEquals(this, other)) return 0;
+             if (other is null) return 1;
+             return m_Weight.CompareTo(other.m_Weight);
+         }
+
+         public abstract PostEffect GetPostEffect();
+     }
+         
+     public abstract class PostEffect
+     {
+         protected Material m_Material;
+
+         abstract protected void Render(RenderGraphContext context);
+
+         abstract public void Record(
+             RenderGraph renderGraph, 
+             CullingResults cullingResults, 
+             Camera camera, 
+             in CameraRendererTextures cameraTextures,
+             TextureHandle target);
+     }
+    
     [Serializable] 
     public class PostEffectManager
     {
-        public abstract class PostEffectSetting : ScriptableObject, IComparable<PostEffectSetting>
+        class PostEffectParameters
         {
-            public int m_Weight = 0;
-            
-            public int CompareTo(PostEffectSetting other)
-            {
-                if (ReferenceEquals(this, other)) return 0;
-                if (other is null) return 1;
-                return m_Weight.CompareTo(other.m_Weight);
-            }
-
-            public abstract PostEffect GetPostEffect();
-        }
-            
-        public abstract class PostEffect
-        {
-            protected Material m_Material;
-        
-            public Material Material { get { return m_Material; } }
-
-            abstract protected void Render(RenderGraphContext context);
-
-            abstract public void Record(
-                RenderGraph renderGraph,
-                CullingResults cullingResults,
-                Camera camera,
-                ScriptableRenderContext renderContext,
-                in CameraRendererTextures cameraTextures);
+            public TextureHandle m_ColorTexture;
+            public TextureHandle m_ColorCopy;
         }
         
         private static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("PostEffect");
         
-        [SerializeField] private List<PostEffectSetting> m_PostEffects = new();
+        [FormerlySerializedAs("m_PostEffects")] [SerializeField] private List<PostEffectSetting> m_PostEffectSettings = new();
+        [SerializeField] private bool m_Enabled = true;
         
-        public bool IsActive => m_PostEffects != null && m_PostEffects.Count > 0;
-        
+        public bool IsActive => m_PostEffectSettings != null && m_PostEffectSettings.Count > 0 && m_Enabled;
 
 
         /// <summary>
@@ -57,25 +63,46 @@ namespace DSM
             ScriptableRenderContext renderContext,
             in CameraRendererTextures cameraTextures)
         {
-            //Debug.Log("Render PostEffect");
             if(!IsActive) return;
-            //Debug.Log("Active");
-
             using var groupSampler = new RenderGraphProfilingScope(renderGraph, sm_Sampler);
-            
-            m_PostEffects.Sort(); // 根据后处理的权重进行排序
-            
-            foreach(PostEffectSetting setting in m_PostEffects)
+
+            Action<RenderGraph, TextureHandle, TextureHandle> copyPassFunc = 
+                (RenderGraph renderGraph, TextureHandle src, TextureHandle dst) =>
             {
-                if(setting == null) continue;
+                var builder = renderGraph.AddRenderPass("Copy ColorTexture", out PostEffectParameters parameters);
+
+                parameters.m_ColorTexture = builder.ReadTexture(src);
+                parameters.m_ColorCopy = builder.WriteTexture(dst);
+
+                builder.SetRenderFunc<PostEffectParameters>(
+                    (PostEffectParameters parameters, RenderGraphContext context) =>
+                    {
+                        CommandBuffer cmd = context.cmd;
+                        cmd.Blit(parameters.m_ColorTexture, parameters.m_ColorCopy);
+                        context.renderContext.ExecuteCommandBuffer(cmd);
+                        cmd.Clear();
+                    });
+            };
+            
+            //copyPassFunc(renderGraph, cameraTextures.m_ColorTexture, cameraTextures.m_ColorCopy);
+            
+            m_PostEffectSettings.Sort(); // 根据后处理的权重进行排序
+            
+            for(int i = 0; i < m_PostEffectSettings.Count; i++)
+            {
+                if(m_PostEffectSettings[i] == null || !m_PostEffectSettings[i].m_Enable) continue;
                 
-                setting.GetPostEffect().Record(
+                m_PostEffectSettings[i].GetPostEffect().Record(
                     renderGraph,
                     cullingResults, 
                     camera, 
-                    renderContext,
-                    cameraTextures);
+                    cameraTextures,
+                    cameraTextures.m_ColorTexture);
             }
+
+            /*if (m_PostEffectSettings.Count % 2 == 0) {
+                copyPassFunc(renderGraph, renderTexture[0], renderTexture[1]);
+            }*/
         }
     }
 }

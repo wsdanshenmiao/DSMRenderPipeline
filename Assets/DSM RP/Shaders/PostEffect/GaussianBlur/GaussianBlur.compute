@@ -1,0 +1,93 @@
+#ifndef __GAUSSIANBLUR_HLSL__
+#define __GAUSSIANBLUR_HLSL__
+
+#pragma kernel HorizBlurCS
+#pragma kernel VerticBlurCS
+
+// 一个线程组中有 256 个线程
+#define THREAD_SIZE 256
+#define MAXBLURRADIUS 50
+
+#include "../../../ShaderLibrary/Common.hlsl"
+
+CBUFFER_START(_GAUSSIANBLURCONSTANTS)
+    int _BlurRadius;
+CBUFFER_END
+
+StructuredBuffer<float> _BlurWeights;
+
+Texture2D _SrcTexture : register(t0);
+RWTexture2D<float4> _DstTexture : register(u0);
+
+// 使用共享内存缓存采样的结果，避免重复的采样
+groupshared float4 gCache[THREAD_SIZE + 2 * MAXBLURRADIUS];
+
+[numthreads(THREAD_SIZE, 1, 1)]
+void HorizBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : SV_DispatchThreadID)
+{
+    int width, height;
+    _SrcTexture.GetDimensions(width, height);
+    
+    // 由于边缘的像素也需要模糊，因此在共享内存中对超出范围的采样结果进行钳值
+    if (groupThreadID.x < _BlurRadius) {    // 左侧的钳值
+        // 若纹理的大小不能被线程数整除，会有多余的线程，需要进行索引限制
+        int x = max(0, dispatchThreadID.x - _BlurRadius);
+        gCache[groupThreadID.x] = _SrcTexture[int2(x, dispatchThreadID.y)];
+    }
+    if (groupThreadID.x >= THREAD_SIZE - _BlurRadius) { // 右侧钳值
+        int x = min(width - 1, dispatchThreadID.x + _BlurRadius);
+        gCache[2 * _BlurRadius + groupThreadID.x] = _SrcTexture[int2(x, dispatchThreadID.y)];
+    }
+
+    // 当前线程负责的采样
+    int2 uv = min(dispatchThreadID.xy, int2(width,height) - 1);
+    gCache[groupThreadID.x + _BlurRadius] = _SrcTexture[uv];
+
+    // 等待所有的线程采样完成
+    GroupMemoryBarrierWithGroupSync();
+
+    // 进行模糊
+    float4 col = 0;
+    for (int iii = -_BlurRadius; iii <= _BlurRadius; ++iii) {
+        int index = iii + _BlurRadius;
+        col += _BlurWeights[index] * gCache[index + groupThreadID.x];
+    }
+
+    _DstTexture[dispatchThreadID.xy] = col;
+}
+
+[numthreads(1, THREAD_SIZE, 1)]
+void VerticBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : SV_DispatchThreadID)
+{
+    int width, height;
+    _SrcTexture.GetDimensions(width, height);
+    
+    // 由于边缘的像素也需要模糊，因此在共享内存中对超出范围的采样结果进行钳值
+    if (groupThreadID.y < _BlurRadius) {    // 左侧的钳值
+        // 若纹理的大小不能被线程数整除，会有多余的线程，需要进行索引限制
+        int y = max(0, dispatchThreadID.y - _BlurRadius);
+        gCache[groupThreadID.y] = _SrcTexture[int2(dispatchThreadID.x, y)];
+    }
+    if (groupThreadID.y >= THREAD_SIZE - _BlurRadius) { // 右侧钳值
+        int y = min(height - 1, dispatchThreadID.y + _BlurRadius);
+        gCache[2 * _BlurRadius + groupThreadID.y] = _SrcTexture[int2(dispatchThreadID.x, y)];
+    }
+
+    // 当前线程负责的采样
+    int2 uv = min(dispatchThreadID.xy, int2(width,height) - 1);
+    gCache[groupThreadID.y + _BlurRadius] = _SrcTexture[uv];
+
+    // 等待所有的线程采样完成
+    GroupMemoryBarrierWithGroupSync();
+
+    // 进行模糊
+    float4 col = 0;
+    for (int iii = -_BlurRadius; iii <= _BlurRadius; ++iii) {
+        int index = iii + _BlurRadius;
+        col += _BlurWeights[index] * gCache[index + groupThreadID.y];
+    }
+
+    _DstTexture[dispatchThreadID.xy] = col;
+}
+
+#endif

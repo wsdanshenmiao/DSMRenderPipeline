@@ -31,6 +31,7 @@ MonoBehaviour:
     m_PostEffectManager:
       m_PostEffects:
       - {fileID: 11400000, guid: 5bf2e45a5f028a646a9bba2483bbd144, type: 2}
+      m_Enabled: 1
     m_RenderLayerMask:
       serializedVersion: 0
       m_Bits: 4294967295

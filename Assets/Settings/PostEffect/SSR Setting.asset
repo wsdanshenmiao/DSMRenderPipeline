@@ -13,16 +13,17 @@ MonoBehaviour:
   m_Name: SSR Setting
   m_EditorClassIdentifier: Assembly-CSharp:DSM:SSRPassSetting
   m_Weight: 0
+  m_Enable: 1
   m_RayMarchingMaxDistance: 40
   m_RayMarchingStep: 0.1
-  m_HitThreshold: 0.2
+  m_HitThreshold: 0.4
   m_HizCount: 4
   m_HizStartLevel: 0
   m_HizEndLevel: 0
   m_BlendFactor: 1
   m_SSRMode: 2
   m_SrcBlend: 5
-  m_DstBlend: 10
+  m_DstBlend: 1
   m_BlendOp: 0
   m_RenderingLayerMask:
     serializedVersion: 0

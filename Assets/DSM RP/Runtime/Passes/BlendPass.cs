@@ -61,6 +61,9 @@ namespace DSM
             cmd.SetRenderTarget(m_DstTexture);
 
             cmd.DrawProcedural(Matrix4x4.identity, sm_Material, 0, MeshTopology.Triangles, 3);
+            
+            context.renderContext.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
         }
 
         public static void Record(RenderGraph renderGraph, BlendSetting setting)

@@ -58,7 +58,7 @@ namespace DSM
                 GeometryPass.Record(
                     renderGraph, cullingResults, camera, renderingLayerMask,
                     false, cameraRendererTexs, lightResources);
-
+                
                 settings.m_PostEffectManager.Record(
                     renderGraph, cullingResults, camera, context, cameraRendererTexs);
 
