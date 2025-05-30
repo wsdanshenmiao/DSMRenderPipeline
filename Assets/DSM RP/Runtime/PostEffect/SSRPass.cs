@@ -27,17 +27,19 @@ namespace DSM
         public uint m_HizCount = 4;
         public uint m_HizStartLevel = 0;
         public uint m_HizEndLevel = 0;
+        public ComputeShader m_GenerateHizShader = null;
         [Header("SSR Settings")]
         [Range(0, 1)] public float m_BlendFactor = 1;
         public SSRMode m_SSRMode = SSRMode.ScreenSpaceHiz;
         public BlendMode m_SrcBlend = BlendMode.SrcAlpha;
-        public BlendMode m_DstBlend = BlendMode.One;
+        public BlendMode m_SSRBlend = BlendMode.One;
         public BlendOp m_BlendOp = BlendOp.Add;
+        [Header("Blur Settings")]
+        [Range(0, 50)] public uint m_BlurRadius = 5;
+        public ComputeShader m_BlurShader = null;
         [Header("")]
         public RenderingLayerMask m_RenderingLayerMask = 
             RenderingLayerMask.defaultRenderingLayerMask;
-        public ComputeShader m_GenerateHizShader = null;
-        public ComputeShader m_BlurShader = null;
 
         public override PostEffect GetPostEffect()
         {
@@ -102,7 +104,6 @@ namespace DSM
             }
             
             CommandBuffer cmd = context.cmd;
-
             
             if (sm_Setting.m_SSRMode == SSRPassSetting.SSRMode.ScreenSpaceHiz) {
                 int width = m_Camera.pixelWidth, height = m_Camera.pixelHeight;
@@ -166,7 +167,7 @@ namespace DSM
         {
             using RenderGraphBuilder ssrBuilder = renderGraph.AddRenderPass(
                 sm_Sampler.name, out SSRPass pass, sm_Sampler);
-
+            
             pass.m_Camera = camera;
             
             // 使用颜色及深度图
@@ -223,12 +224,17 @@ namespace DSM
 
 
             if (sm_Setting.m_BlurShader != null) {
-                GaussianBlurPass.Record(renderGraph, sm_Setting.m_BlurShader, pass.m_DstTexture, 5, width, height);
+                GaussianBlurPass.Record(
+                    renderGraph, 
+                    sm_Setting.m_BlurShader, 
+                    pass.m_DstTexture, 
+                    sm_Setting.m_BlurRadius, 
+                    width, height);
             }
             
             BlendSetting blendSetting = new BlendSetting(
-                pass.m_SrcTexture, pass.m_DstTexture,
-                sm_Setting.m_SrcBlend, sm_Setting.m_DstBlend, sm_Setting.m_BlendOp);
+                pass.m_DstTexture, pass.m_SrcTexture,
+                sm_Setting.m_SSRBlend, sm_Setting.m_SrcBlend, sm_Setting.m_BlendOp);
             BlendPass.Record(renderGraph, blendSetting);
         }
 

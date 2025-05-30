@@ -20,13 +20,14 @@ MonoBehaviour:
   m_HizCount: 4
   m_HizStartLevel: 0
   m_HizEndLevel: 0
+  m_GenerateHizShader: {fileID: 7200000, guid: cf160ada6e3eae842818e08480c24fb5, type: 3}
   m_BlendFactor: 1
   m_SSRMode: 2
   m_SrcBlend: 5
-  m_DstBlend: 1
+  m_SSRBlend: 1
   m_BlendOp: 0
+  m_BlurRadius: 8
+  m_BlurShader: {fileID: 7200000, guid: fccc05313bf34b01b7c6eba52bd29c2f, type: 3}
   m_RenderingLayerMask:
     serializedVersion: 0
     m_Bits: 2
-  m_GenerateHizComputeShader: {fileID: 7200000, guid: cf160ada6e3eae842818e08480c24fb5,
-    type: 3}

@@ -71,7 +71,6 @@ namespace DSM
                 cmd.CopyTexture(m_TargetTexture, m_TmpTargetTexture);
                 targetTex = m_TmpTargetTexture;
             }
-
             
             int horizKernel = m_BlurShader.FindKernel("HorizBlurCS");
             int verticKernel = m_BlurShader.FindKernel("VerticBlurCS");
@@ -84,7 +83,7 @@ namespace DSM
             m_BlurShader.SetBuffer(verticKernel, m_BlurWeightsId, m_BlurWeights);
             
             // 横向模糊
-            int threadGroupX = Mathf.Max(1, m_TexWidth / sm_ThreadInGroup);
+            int threadGroupX = (m_TexWidth / sm_ThreadInGroup) + 1;
             int threadGroupY = m_TexHeight;
             m_BlurShader.SetTexture(horizKernel, m_SrcTextureId, targetTex);
             m_BlurShader.SetTexture(horizKernel, m_DstTextureId, m_TmpTexture);
@@ -92,7 +91,7 @@ namespace DSM
 
             // 纵向模糊
             threadGroupX = m_TexWidth;
-            threadGroupY = Mathf.Max(1, m_TexHeight / sm_ThreadInGroup);
+            threadGroupY = (m_TexHeight / sm_ThreadInGroup) + 1;
             m_BlurShader.SetTexture(verticKernel, m_SrcTextureId, m_TmpTexture);
             m_BlurShader.SetTexture(verticKernel, m_DstTextureId, targetTex);
             cmd.DispatchCompute(m_BlurShader, verticKernel, threadGroupX, threadGroupY, 1);
@@ -132,7 +131,7 @@ namespace DSM
             var builder = renderGraph.AddRenderPass(
                 sm_Sampler.name, out GaussianBlurPass pass, sm_Sampler);
 
-            pass.m_TargetTexture = builder.ReadWriteTexture(target);
+            pass.m_TargetTexture = builder.ReadTexture(target);
             pass.m_TexWidth = width;
             pass.m_TexHeight = height;
             pass.m_BlurRadius = blurRadius;
@@ -154,23 +153,28 @@ namespace DSM
             {
                 name = "BlurWeights",
                 count = (int)(blurRadius * 2 + 1),
-                stride = sizeof(float)
+                stride = sizeof(float),
+                target = GraphicsBuffer.Target.Structured
             };
             pass.m_BlurWeights = builder.WriteBuffer(renderGraph.CreateBuffer(bufferDesc));
-            
+
             builder.SetRenderFunc<GaussianBlurPass>(
                 static (pass, context) => pass.Render(context));
         }
 
         private float[] CalculateGaussianWeight(uint blurRadius)
         {
-            uint weightSize = 2 * blurRadius + 1;
+            const float sigma = 2.5f;
+            
             float weightSum = 0;
+            uint weightSize = 2 * blurRadius + 1;
+            float step = (2 * sigma) / (weightSize - 1);
             float[] blurWeights = new float[weightSize];
+            
             // 取 2 sigma 范围
             for (int i = 0; i < blurWeights.Length; ++i) {
-                float x = i / weightSize;
-                blurWeights[i] = GaussianFunction(i - blurRadius, 2);
+                float x = i * step - sigma;
+                blurWeights[i] = GaussianFunction(x, sigma);
                 weightSum += blurWeights[i];
             }
 

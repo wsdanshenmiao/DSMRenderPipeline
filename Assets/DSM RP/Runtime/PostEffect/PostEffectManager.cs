@@ -19,7 +19,7 @@ namespace DSM
              return m_Weight.CompareTo(other.m_Weight);
          }
 
-         public abstract PostEffect GetPostEffect();
+        abstract public PostEffect GetPostEffect();
      }
          
      public abstract class PostEffect
