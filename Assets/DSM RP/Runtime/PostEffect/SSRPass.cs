@@ -9,10 +9,6 @@ namespace DSM
 {
     public class SSRPass : PostEffect
     {
-        private static ProfilingSampler sm_Sampler = new ProfilingSampler("SSR");
-        
-        public static SSRPassSetting sm_Setting;
-        
         public Material SSRMaterial{
             get{
                 if (m_Material == null) {
@@ -23,17 +19,19 @@ namespace DSM
             
         }
 
-        private TextureHandle m_SrcTexture, m_DstTexture, 
+        public TextureHandle m_SrcTexture, m_DstTexture, 
             m_DepthTexture, m_NormalTexture;
-        private TextureHandle[] m_HizTextures;
-        private TextureHandle m_PackageHizTexture;
-        private TextureHandle m_MaskTexture;
+        public TextureHandle[] m_HizTextures;
+        public TextureHandle m_PackageHizTexture;
+        public TextureHandle m_MaskTexture;
 
-        private RendererListHandle m_RenderList;
+        public RendererListHandle m_RenderList;
 
-        private Camera m_Camera;
+        public int m_CameraWidth, m_CameraHeight;
 
-        private static readonly int
+        public SSRPassSetting m_Setting = null;
+
+        public static readonly int
             m_RayMarchingMaxCountId = Shader.PropertyToID("_RayMarchingMaxDistance"),
             m_RayMarchingStepId = Shader.PropertyToID("_RayMarchingStep"),
             m_HitThresholdId = Shader.PropertyToID("_HitThreshold"),
@@ -45,28 +43,28 @@ namespace DSM
             m_HizCountId = Shader.PropertyToID("_HizCount"),
             m_MaskTextureId = Shader.PropertyToID("_MaskTexture");
 
-        private static readonly Material m_SSRLitMaterial = 
+        public static readonly Material m_SSRLitMaterial = 
             CoreUtils.CreateEngineMaterial(Shader.Find("DSM RP/SSRLit"));
 
-        private static readonly ShaderTagId m_ShaderTagID = new("DSMLit");
+        public static readonly ShaderTagId m_ShaderTagID = new("DSMLit");
 
-        private static readonly string[] m_SSRModeKeywords = {
+        public static readonly string[] m_SSRModeKeywords = {
             "SCREENSPACE", "SCREENSPACEHIEZ"
         };
 
-        protected override void Render(RenderGraphContext context)
+        public override void Render(RenderGraphContext context)
         {
-            if(sm_Setting == null) return;
-            if (sm_Setting.m_GenerateHizShader == null) {
+            if(m_Setting == null) return;
+            if (m_Setting.m_GenerateHizShader == null) {
                 Debug.LogError("GenerateHizComputeShader is missing");
                 return;
             }
             
             CommandBuffer cmd = context.cmd;
             
-            if (sm_Setting.m_SSRMode == SSRPassSetting.SSRMode.ScreenSpaceHiz) {
-                int width = m_Camera.pixelWidth, height = m_Camera.pixelHeight;
-                sm_Setting.m_HizCount = (uint)Mathf.Min(sm_Setting.m_HizCount, Mathf.Log(Mathf.Min(width, height), 2));
+            if (m_Setting.m_SSRMode == SSRPassSetting.SSRMode.ScreenSpaceHiz) {
+                int width = m_CameraWidth, height = m_CameraHeight;
+                m_Setting.m_HizCount = (uint)Mathf.Min(m_Setting.m_HizCount, Mathf.Log(Mathf.Min(width, height), 2));
 
                 RenderTargetIdentifier depthTex = m_DepthTexture;
                 cmd.Blit(depthTex, m_PackageHizTexture);
@@ -75,8 +73,8 @@ namespace DSM
                 height = height / 2;
                 
                 // 生成并设置层次深度
-                for (int i = 0; i < sm_Setting.m_HizCount; ++i, width /= 2, height /= 2) {
-                    var computeShader = sm_Setting.m_GenerateHizShader;
+                for (int i = 0; i < m_Setting.m_HizCount; ++i, width /= 2, height /= 2) {
+                    var computeShader = m_Setting.m_GenerateHizShader;
                     int kernelIndex = computeShader.FindKernel("GenerateSSRHieZ");
                     cmd.SetComputeTextureParam(computeShader, 0, m_HizTextureId, m_HizTextures[i]);
                     cmd.SetComputeTextureParam(computeShader, 0, m_DepthTextureId, depthTex);
@@ -94,15 +92,15 @@ namespace DSM
                 m_DepthTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             cmd.DrawRendererList(m_RenderList);
             
-            SetKeywords(cmd, m_SSRModeKeywords, (int)sm_Setting.m_SSRMode - 1);
+            SetKeywords(cmd, m_SSRModeKeywords, (int)m_Setting.m_SSRMode - 1);
             
-            SSRMaterial.SetInt(m_HizCountId, (int)sm_Setting.m_HizCount);
-            SSRMaterial.SetInt(m_HizStartLevelId, (int)Mathf.Min(sm_Setting.m_HizStartLevel, sm_Setting.m_HizCount));
-            SSRMaterial.SetInt(m_HizEndLevelId, (int)Mathf.Min(sm_Setting.m_HizEndLevel, sm_Setting.m_HizStartLevel));
-            SSRMaterial.SetInt(m_RayMarchingMaxCountId, sm_Setting.m_RayMarchingMaxDistance);
-            SSRMaterial.SetFloat(m_RayMarchingStepId, sm_Setting.m_RayMarchingStep);
-            SSRMaterial.SetFloat(m_HitThresholdId, sm_Setting.m_HitThreshold);
-            SSRMaterial.SetFloat(m_BlendFactorId, sm_Setting.m_BlendFactor);
+            SSRMaterial.SetInt(m_HizCountId, (int)m_Setting.m_HizCount);
+            SSRMaterial.SetInt(m_HizStartLevelId, (int)Mathf.Min(m_Setting.m_HizStartLevel, m_Setting.m_HizCount));
+            SSRMaterial.SetInt(m_HizEndLevelId, (int)Mathf.Min(m_Setting.m_HizEndLevel, m_Setting.m_HizStartLevel));
+            SSRMaterial.SetInt(m_RayMarchingMaxCountId, m_Setting.m_RayMarchingMaxDistance);
+            SSRMaterial.SetFloat(m_RayMarchingStepId, m_Setting.m_RayMarchingStep);
+            SSRMaterial.SetFloat(m_HitThresholdId, m_Setting.m_HitThreshold);
+            SSRMaterial.SetFloat(m_BlendFactorId, m_Setting.m_BlendFactor);
 
             SSRMaterial.SetTexture(CameraRendererTextures.m_CameraColorTextureId, m_SrcTexture);
             SSRMaterial.SetTexture(CameraRendererTextures.m_CameraDepthTextureId, m_DepthTexture);
@@ -115,86 +113,6 @@ namespace DSM
             
             context.renderContext.ExecuteCommandBuffer(cmd);
             cmd.Clear();
-        }
-
-        public override void Record(
-            RenderGraph renderGraph, 
-            CullingResults cullingResults, 
-            Camera camera, 
-            in CameraRendererTextures cameraTextures,
-            TextureHandle target)
-        {
-            using RenderGraphBuilder ssrBuilder = renderGraph.AddRenderPass(
-                sm_Sampler.name, out SSRPass pass, sm_Sampler);
-            
-            pass.m_Camera = camera;
-            
-            // 使用颜色及深度图
-            pass.m_SrcTexture = ssrBuilder.ReadWriteTexture(target);
-            pass.m_DepthTexture = ssrBuilder.ReadTexture(cameraTextures.m_DepthTexture);
-            pass.m_NormalTexture = ssrBuilder.ReadTexture(cameraTextures.m_NormalTexture);
-
-            // 临时纹理
-            int width = camera.pixelWidth, height = camera.pixelHeight;
-            TextureDesc texDesc = new TextureDesc(width, height)
-            {
-                name = "MaskTexture",
-                format = GraphicsFormat.R8_SNorm,
-            };
-            
-            // 遮罩纹理
-            pass.m_MaskTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
-
-            texDesc.format = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR);
-            texDesc.name = "TmpTexture";
-            pass.m_DstTexture = ssrBuilder.WriteTexture(renderGraph.CreateTexture(texDesc));
-            
-            // 打包好的Hiz纹理
-            texDesc.format = GraphicsFormat.R32_SFloat;
-            texDesc.name = "Package Hiz Texture";
-            texDesc.useMipMap = true;
-            texDesc.autoGenerateMips = false;   // 不能自动生成MipMap，否则拷贝的会被覆盖
-            pass.m_PackageHizTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
-
-            // Hiz纹理
-            pass.m_HizTextures = new TextureHandle[sm_Setting.m_HizCount];
-            texDesc.useMipMap = false;
-            for (int i = 0, hizWidth = width / 2, hizHeight = height / 2; 
-                i < pass.m_HizTextures.Length; i++, hizWidth /= 2, hizHeight /= 2) {
-                texDesc.width = hizWidth;
-                texDesc.height = hizHeight;
-                texDesc.enableRandomWrite = true;
-                texDesc.name = "HizTexture" + i;
-                pass.m_HizTextures[i] = ssrBuilder.ReadWriteTexture(
-                    renderGraph.CreateTexture(texDesc));
-            }
-
-            pass.m_RenderList = ssrBuilder.UseRendererList(renderGraph.CreateRendererList(
-                new RendererListDesc(m_ShaderTagID, cullingResults, camera)
-                {
-                    renderQueueRange = RenderQueueRange.all,
-                    renderingLayerMask = sm_Setting.m_RenderingLayerMask,
-                    overrideMaterial = m_SSRLitMaterial,
-                    overrideMaterialPassIndex = 1
-                }));
-            
-            ssrBuilder.SetRenderFunc<SSRPass>(
-                static (pass, context) => pass.Render(context));
-
-
-            if (sm_Setting.m_BlurShader != null) {
-                GaussianBlurPass.Record(
-                    renderGraph, 
-                    sm_Setting.m_BlurShader, 
-                    pass.m_DstTexture, 
-                    sm_Setting.m_BlurRadius, 
-                    width, height);
-            }
-            
-            BlendSetting blendSetting = new BlendSetting(
-                pass.m_DstTexture, pass.m_SrcTexture,
-                sm_Setting.m_SSRBlend, sm_Setting.m_SrcBlend, sm_Setting.m_BlendOp);
-            BlendPass.Record(renderGraph, blendSetting);
         }
 
 

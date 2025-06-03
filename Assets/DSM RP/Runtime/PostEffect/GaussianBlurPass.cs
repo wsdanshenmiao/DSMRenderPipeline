@@ -8,9 +8,7 @@ namespace DSM
     public class GaussianBlurPass : PostEffect
     {
         private static ProfilingSampler sm_Sampler = new ProfilingSampler(nameof(GaussianBlurPass));
-        
-        public GaussianBlurSetting sm_Setting = null;
-
+       
         private TextureHandle m_TargetTexture;
         private TextureHandle m_TmpTexture;
         private TextureHandle m_TmpTargetTexture;
@@ -30,21 +28,11 @@ namespace DSM
             m_SrcTextureId = Shader.PropertyToID("_SrcTexture"),
             m_DstTextureId = Shader.PropertyToID("_DstTexture");
         
-        protected override void Render(RenderGraphContext context)
+        public override void Render(RenderGraphContext context)
         {
-            if (sm_Setting != null && sm_Setting.m_BlurShader == null) {
-                Debug.LogError("BlurComputeShader is missing");
-                return;
-            }
-
-            if (sm_Setting != null) {
-                m_BlurRadius = sm_Setting.m_BlurRadius;
-            }
-
             if (m_BlurRadius < 1) return;
             
             CommandBuffer cmd = context.cmd;
-            m_BlurShader = sm_Setting == null ? m_BlurShader : sm_Setting.m_BlurShader;
 
             // 原纹理是否是UAV
             bool useTmpTarget = m_TmpTargetTexture.IsValid();
@@ -86,22 +74,6 @@ namespace DSM
             
             context.renderContext.ExecuteCommandBuffer(cmd);
             cmd.Clear();
-        }
-
-        public override void Record(
-            RenderGraph renderGraph,
-            CullingResults cullingResults,
-            Camera camera,
-            in CameraRendererTextures cameraTextures,
-            TextureHandle target)
-        {
-            GaussianBlurPass.Record(
-                renderGraph, 
-                sm_Setting.m_BlurShader, 
-                target, 
-                sm_Setting.m_BlurRadius,
-                camera.pixelWidth, 
-                camera.pixelHeight);
         }
 
         public static void Record(

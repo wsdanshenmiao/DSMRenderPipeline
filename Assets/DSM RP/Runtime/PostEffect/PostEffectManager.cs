@@ -19,21 +19,19 @@ namespace DSM
              return m_Weight.CompareTo(other.m_Weight);
          }
 
-        abstract public PostEffect GetPostEffect();
-     }
+        public abstract void Record(
+             RenderGraph renderGraph,
+             CullingResults cullingResults,
+             Camera camera,
+             in CameraRendererTextures cameraTextures,
+             TextureHandle target);
+    }
          
      public abstract class PostEffect
      {
          protected Material m_Material;
 
-         abstract protected void Render(RenderGraphContext context);
-
-         abstract public void Record(
-             RenderGraph renderGraph, 
-             CullingResults cullingResults, 
-             Camera camera, 
-             in CameraRendererTextures cameraTextures,
-             TextureHandle target);
+         public abstract void Render(RenderGraphContext context);
      }
     
     [Serializable] 
@@ -92,8 +90,7 @@ namespace DSM
             {
                 if(m_PostEffectSettings[i] == null || !m_PostEffectSettings[i].m_Enable) continue;
 
-                m_PostEffectSettings[i].GetType();
-                m_PostEffectSettings[i].GetPostEffect().Record(
+                m_PostEffectSettings[i].Record(
                     renderGraph,
                     cullingResults, 
                     camera, 
