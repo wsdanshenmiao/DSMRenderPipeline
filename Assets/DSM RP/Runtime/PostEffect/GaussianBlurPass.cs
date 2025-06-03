@@ -1,38 +1,20 @@
-using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
 
 namespace DSM
 {
-    [CreateAssetMenu(menuName = "Rendering/Custom PostEffect/GaussianBlur")]
-    public class GaussianBlurSetting : PostEffectSetting
-    {
-        private static GaussianBlurPass m_Pass = null;
-        
-        [Range(0, 50)] public uint m_BlurRadius = 5;
-        public ComputeShader m_BlurShader = null;
-        
-        public override PostEffect GetPostEffect()
-        {
-            if(m_Pass == null) {
-                m_Pass = new GaussianBlurPass();
-                GaussianBlurPass.sm_Setting = this;
-            }
-            return m_Pass;
-        }
-    }
-    
     // 高斯模糊
     public class GaussianBlurPass : PostEffect
     {
         private static ProfilingSampler sm_Sampler = new ProfilingSampler(nameof(GaussianBlurPass));
         
-        public static GaussianBlurSetting sm_Setting = null;
+        public GaussianBlurSetting sm_Setting = null;
 
         private TextureHandle m_TargetTexture;
         private TextureHandle m_TmpTexture;
         private TextureHandle m_TmpTargetTexture;
+
         private BufferHandle m_BlurWeights;
 
         private int m_TexWidth, m_TexHeight;
@@ -78,9 +60,10 @@ namespace DSM
             float[] blurWeights = CalculateGaussianWeight(m_BlurRadius);
             cmd.SetBufferData(m_BlurWeights, blurWeights);
             
-            m_BlurShader.SetInt(m_BlurRadiusId, (int)m_BlurRadius);
             m_BlurShader.SetBuffer(horizKernel, m_BlurWeightsId, m_BlurWeights);
             m_BlurShader.SetBuffer(verticKernel, m_BlurWeightsId, m_BlurWeights);
+            
+            m_BlurShader.SetInt(m_BlurRadiusId, (int)m_BlurRadius);
             
             // 横向模糊
             int threadGroupX = (m_TexWidth / sm_ThreadInGroup) + 1;
@@ -130,7 +113,7 @@ namespace DSM
         {
             var builder = renderGraph.AddRenderPass(
                 sm_Sampler.name, out GaussianBlurPass pass, sm_Sampler);
-
+            
             pass.m_TargetTexture = builder.ReadTexture(target);
             pass.m_TexWidth = width;
             pass.m_TexHeight = height;
@@ -149,14 +132,11 @@ namespace DSM
             texDesc.enableRandomWrite = true;
             pass.m_TmpTexture = builder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
 
-            BufferDesc bufferDesc = new BufferDesc()
-            {
-                name = "BlurWeights",
-                count = (int)(blurRadius * 2 + 1),
-                stride = sizeof(float),
-                target = GraphicsBuffer.Target.Structured
-            };
-            pass.m_BlurWeights = builder.WriteBuffer(renderGraph.CreateBuffer(bufferDesc));
+            pass.m_BlurWeights = builder.WriteBuffer(renderGraph.CreateBuffer(
+                new BufferDesc(2 * (int)blurRadius + 1, sizeof(float))
+                {
+                    name = "BlurWeights",
+                }));
 
             builder.SetRenderFunc<GaussianBlurPass>(
                 static (pass, context) => pass.Render(context));

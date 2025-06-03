@@ -7,47 +7,6 @@ using UnityEngine.Serialization;
 
 namespace DSM
 {
-    [CreateAssetMenu(menuName = "Rendering/Custom PostEffect/SSR")]
-    public class SSRPassSetting : PostEffectSetting
-    {
-        private static SSRPass m_Pass = null;
-
-        public enum SSRMode
-        {
-            ViewSpace = 0,
-            ScreenSpace = 1,
-            ScreenSpaceHiz = 2
-        }
-
-        [Header("Marching Settings")]
-        public int m_RayMarchingMaxDistance = 40;   // 最大步进次数
-        [Range(0, float.MaxValue)] public float m_RayMarchingStep = 0.1f;    // 每次步进的步频
-        [Range(0, 1)] public float m_HitThreshold = 0.4f;
-        [Header("Hiz Settings")]
-        public uint m_HizCount = 4;
-        public uint m_HizStartLevel = 0;
-        public uint m_HizEndLevel = 0;
-        public ComputeShader m_GenerateHizShader = null;
-        [Header("SSR Settings")]
-        [Range(0, 1)] public float m_BlendFactor = 1;
-        public SSRMode m_SSRMode = SSRMode.ScreenSpaceHiz;
-        public BlendMode m_SrcBlend = BlendMode.SrcAlpha;
-        public BlendMode m_SSRBlend = BlendMode.One;
-        public BlendOp m_BlendOp = BlendOp.Add;
-        [Header("Blur Settings")]
-        [Range(0, 50)] public uint m_BlurRadius = 5;
-        public ComputeShader m_BlurShader = null;
-        [Header("")]
-        public RenderingLayerMask m_RenderingLayerMask = 
-            RenderingLayerMask.defaultRenderingLayerMask;
-
-        public override PostEffect GetPostEffect()
-        {
-            if(m_Pass == null) { m_Pass = new SSRPass(); SSRPass.sm_Setting = this; }
-            return m_Pass;
-        }
-    }
-    
     public class SSRPass : PostEffect
     {
         private static ProfilingSampler sm_Sampler = new ProfilingSampler("SSR");

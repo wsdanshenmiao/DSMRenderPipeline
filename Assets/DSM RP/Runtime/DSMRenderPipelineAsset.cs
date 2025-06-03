@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace DSM
 {
     [CreateAssetMenu(menuName = "DSMRendering/DSM Render Pipeline")]
-    public class DSMRenderPipelineAssets : RenderPipelineAsset
+    public class DSMRenderPipelineAssets : RenderPipelineAsset<DSMRenderPipeline>
     {
         [SerializeField]
         private DSMRenderPipelineSettings m_Settings;

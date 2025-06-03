@@ -91,7 +91,8 @@ namespace DSM
             for(int i = 0; i < m_PostEffectSettings.Count; i++)
             {
                 if(m_PostEffectSettings[i] == null || !m_PostEffectSettings[i].m_Enable) continue;
-                
+
+                m_PostEffectSettings[i].GetType();
                 m_PostEffectSettings[i].GetPostEffect().Record(
                     renderGraph,
                     cullingResults, 
