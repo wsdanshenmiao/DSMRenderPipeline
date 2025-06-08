@@ -37,12 +37,6 @@ namespace DSM
     [Serializable] 
     public class PostEffectManager
     {
-        class PostEffectParameters
-        {
-            public TextureHandle m_ColorTexture;
-            public TextureHandle m_ColorCopy;
-        }
-        
         private static readonly ProfilingSampler sm_Sampler = new ProfilingSampler("PostEffect");
         
         [FormerlySerializedAs("m_PostEffects")] [SerializeField] private List<PostEffectSetting> m_PostEffectSettings = new();
@@ -64,26 +58,6 @@ namespace DSM
             if(!IsActive) return;
             using var groupSampler = new RenderGraphProfilingScope(renderGraph, sm_Sampler);
 
-            Action<RenderGraph, TextureHandle, TextureHandle> copyPassFunc = 
-                (RenderGraph renderGraph, TextureHandle src, TextureHandle dst) =>
-            {
-                var builder = renderGraph.AddRenderPass("Copy ColorTexture", out PostEffectParameters parameters);
-
-                parameters.m_ColorTexture = builder.ReadTexture(src);
-                parameters.m_ColorCopy = builder.WriteTexture(dst);
-
-                builder.SetRenderFunc<PostEffectParameters>(
-                    (PostEffectParameters parameters, RenderGraphContext context) =>
-                    {
-                        CommandBuffer cmd = context.cmd;
-                        cmd.Blit(parameters.m_ColorTexture, parameters.m_ColorCopy);
-                        context.renderContext.ExecuteCommandBuffer(cmd);
-                        cmd.Clear();
-                    });
-            };
-            
-            //copyPassFunc(renderGraph, cameraTextures.m_ColorTexture, cameraTextures.m_ColorCopy);
-            
             m_PostEffectSettings.Sort(); // 根据后处理的权重进行排序
             
             for(int i = 0; i < m_PostEffectSettings.Count; i++)
@@ -98,9 +72,6 @@ namespace DSM
                     cameraTextures.m_ColorTexture);
             }
 
-            /*if (m_PostEffectSettings.Count % 2 == 0) {
-                copyPassFunc(renderGraph, renderTexture[0], renderTexture[1]);
-            }*/
         }
     }
 }

@@ -4,11 +4,14 @@ using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering.RendererUtils;
 using UnityEngine.Serialization;
+using static UnityEngine.GraphicsBuffer;
 
 namespace DSM
 {
     public class SSRPass : PostEffect
     {
+        private static ProfilingSampler sm_Sampler = new ProfilingSampler("SSR");
+
         public Material SSRMaterial{
             get{
                 if (m_Material == null) {
@@ -113,6 +116,92 @@ namespace DSM
             
             context.renderContext.ExecuteCommandBuffer(cmd);
             cmd.Clear();
+        }
+
+        public static void Record(
+            RenderGraph renderGraph,
+            CullingResults cullingResults,
+            Camera camera,
+            in CameraRendererTextures cameraTextures,
+            TextureHandle target,
+            SSRPassSetting setting)
+        {
+            using RenderGraphBuilder ssrBuilder = renderGraph.AddRenderPass(
+                sm_Sampler.name, out SSRPass pass, sm_Sampler);
+
+            int width = camera.pixelWidth, height = camera.pixelHeight;
+
+            pass.m_Setting = setting;
+            pass.m_CameraWidth = width;
+            pass.m_CameraHeight = height;
+
+            // 使用颜色及深度图
+            pass.m_SrcTexture = ssrBuilder.ReadWriteTexture(target);
+            pass.m_DepthTexture = ssrBuilder.ReadTexture(cameraTextures.m_DepthTexture);
+            pass.m_NormalTexture = ssrBuilder.ReadTexture(cameraTextures.m_NormalTexture);
+
+            // 临时纹理
+            TextureDesc texDesc = new TextureDesc(width, height)
+            {
+                name = "MaskTexture",
+                format = GraphicsFormat.R8_SNorm,
+            };
+
+            // 遮罩纹理
+            pass.m_MaskTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
+
+            texDesc.format = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR);
+            texDesc.name = "TmpTexture";
+            pass.m_DstTexture = ssrBuilder.WriteTexture(renderGraph.CreateTexture(texDesc));
+
+            // 打包好的Hiz纹理
+            texDesc.format = GraphicsFormat.R32_SFloat;
+            texDesc.name = "Package Hiz Texture";
+            texDesc.useMipMap = true;
+            texDesc.autoGenerateMips = false;   // 不能自动生成MipMap，否则拷贝的会被覆盖
+            pass.m_PackageHizTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
+
+            // Hiz纹理
+            pass.m_HizTextures = new TextureHandle[setting.m_HizCount];
+            texDesc.useMipMap = false;
+            for (int i = 0, hizWidth = width / 2, hizHeight = height / 2;
+                i < pass.m_HizTextures.Length; i++, hizWidth /= 2, hizHeight /= 2)
+            {
+                texDesc.width = hizWidth;
+                texDesc.height = hizHeight;
+                texDesc.enableRandomWrite = true;
+                texDesc.name = "HizTexture" + i;
+                pass.m_HizTextures[i] = ssrBuilder.ReadWriteTexture(
+                    renderGraph.CreateTexture(texDesc));
+            }
+
+            pass.m_RenderList = ssrBuilder.UseRendererList(renderGraph.CreateRendererList(
+                new RendererListDesc(SSRPass.m_ShaderTagID, cullingResults, camera)
+                {
+                    renderQueueRange = RenderQueueRange.all,
+                    renderingLayerMask = setting.m_RenderingLayerMask,
+                    overrideMaterial = SSRPass.m_SSRLitMaterial,
+                    overrideMaterialPassIndex = 1
+                }));
+
+            ssrBuilder.SetRenderFunc<SSRPass>(
+                static (pass, context) => pass.Render(context));
+
+
+            if (setting.m_BlurShader != null)
+            {
+                GaussianBlurPass.Record(
+                    renderGraph,
+                    setting.m_BlurShader,
+                    pass.m_DstTexture,
+                    setting.m_BlurRadius,
+                    width, height);
+            }
+
+            BlendSetting blendSetting = new BlendSetting(
+                pass.m_DstTexture, pass.m_SrcTexture,
+                setting.m_SSRBlend, setting.m_SrcBlend, setting.m_BlendOp);
+            BlendPass.Record(renderGraph, blendSetting);
         }
 
 

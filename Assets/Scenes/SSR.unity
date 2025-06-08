@@ -890,7 +890,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: e53f506fca2426c43b6122607d40a6dc,
         type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 941694380900433123, guid: e53f506fca2426c43b6122607d40a6dc,
         type: 3}
@@ -1458,6 +1458,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: MAikawaDefault
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: bdd44cff395df584f904ed722f267ef5,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1252362481249373077, guid: bdd44cff395df584f904ed722f267ef5,
         type: 3}
