@@ -26,13 +26,6 @@ namespace DSM
              in CameraRendererTextures cameraTextures,
              TextureHandle target);
     }
-         
-     public abstract class PostEffect
-     {
-         protected Material m_Material;
-
-         public abstract void Render(RenderGraphContext context);
-     }
     
     [Serializable] 
     public class PostEffectManager

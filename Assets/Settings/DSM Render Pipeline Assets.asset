@@ -31,6 +31,7 @@ MonoBehaviour:
     m_PostEffectManager:
       m_PostEffectSettings:
       - {fileID: 11400000, guid: d18d06a7d6b9a47439fb08a73ef9d2e5, type: 2}
+      - {fileID: 11400000, guid: 43d0b97125ee0b7409184be57c5f2796, type: 2}
       m_Enabled: 1
     m_RenderLayerMask:
       serializedVersion: 0

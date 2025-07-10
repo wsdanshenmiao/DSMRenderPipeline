@@ -19,6 +19,7 @@ CBUFFER_START(_SSRCONSTANTS)
     int _HizStartLevel;
     int _HizEndLevel;
     int _HizCount;
+    int _HizStride;
 CBUFFER_END
 
 bool GetCurrDepthAndUV(float3 currPos, out float currDepth, out float2 uv)
@@ -164,9 +165,12 @@ float4 SSR2DRayMarching(
             SwapFloat(minZ, maxZ);
         }
         bool inRange = all(0 <= uv && uv <= 1);
+        [flatten]
+        if(!inRange) break;
+
         bool hit = minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold;
         [branch]
-        if (hit && inRange) {
+        if (hit) {
             return GetCameraColor(uv);
         }
     }
@@ -274,7 +278,6 @@ float4 ScreenSpaceSRR(Ray ray)
         offsetSS = offsetSS.yx;
         startSS = startSS.yx;
         endSS = endSS.yx;
-        steep = true;
     }
 
     // 步进的方向                       转换为正
@@ -283,6 +286,8 @@ float4 ScreenSpaceSRR(Ray ray)
     float3 offsetQ = (endQ - startQ) * invDx;
     float offsetK = (endK - startK) * invDx;
     offsetSS = float2(stepDir, offsetSS.y * invDx);
+
+    offsetSS *= _HizStride, offsetQ *= _HizStride, offsetK *= _HizStride;
 
     float2 currSS = startSS;
     float3 currQ = startQ;
@@ -303,21 +308,20 @@ float4 SSRPassFragment(Varyings input) : SV_TARGET
 {
     float4 reflectCol = float4(0, 0, 0, _BlendFactor);
     float mask = SAMPLE_TEXTURE2D(_MaskTexture, sampler_MaskTexture, input.uv).r;
+    [branch]
     if (mask == 0) return reflectCol;
     
     // 获取RayMarching所需的信息
     float3 normal = SAMPLE_TEXTURE2D(_NormalTexture, sampler_NormalTexture, input.uv).xyz;
     [branch]
     if (all(normal == 0)) return reflectCol;    // 排除天空盒
-    normal = normal * 2 - 1;
+    normal = DecodeNormal(normal);
     normal = normalize(mul((float3x3)unity_MatrixV, normal));
     float3 posVS = GetViewPosition(input.uv);
     float3 viewDir = normalize(posVS);
-    float3 rayDir = normalize(reflect(viewDir, normal));    // 若z大于0则会出问题
+    float3 rayDir = normalize(reflect(viewDir, normal));
     
-    float4 baseCol = GetCameraColor(input.uv);
-    
-    const float posUP = 0.02;
+    const float posUP = 0.02 * _HizStride;
     Ray ray;
     ray.rayDir = rayDir;
     ray.origin = posVS + normal * posUP;

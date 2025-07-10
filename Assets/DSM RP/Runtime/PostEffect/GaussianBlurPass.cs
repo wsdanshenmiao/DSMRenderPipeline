@@ -5,7 +5,7 @@ using UnityEngine.Rendering.RenderGraphModule;
 namespace DSM
 {
     // 高斯模糊
-    public class GaussianBlurPass : PostEffect
+    public class GaussianBlurPass
     {
         private static ProfilingSampler sm_Sampler = new ProfilingSampler(nameof(GaussianBlurPass));
        
@@ -22,13 +22,13 @@ namespace DSM
 
         public static readonly int sm_ThreadInGroup = 256;
         
-        private static readonly int
+        public static readonly int
             m_BlurRadiusId = Shader.PropertyToID("_BlurRadius"),
             m_BlurWeightsId = Shader.PropertyToID("_BlurWeights"),
             m_SrcTextureId = Shader.PropertyToID("_SrcTexture"),
             m_DstTextureId = Shader.PropertyToID("_DstTexture");
         
-        public override void Render(RenderGraphContext context)
+        public void Render(RenderGraphContext context)
         {
             if (m_BlurRadius < 1) return;
             

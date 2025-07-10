@@ -24,6 +24,7 @@ namespace DSM
         public uint m_HizCount = 4;
         public uint m_HizStartLevel = 0;
         public uint m_HizEndLevel = 0;
+        [Range(1, 5)] public uint m_HizStride = 1;
         public ComputeShader m_GenerateHizShader = null;
         [Header("SSR Settings")]
         [Range(0, 1)] public float m_BlendFactor = 1;

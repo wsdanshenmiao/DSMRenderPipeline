@@ -123,4 +123,15 @@ void SwapFloat(inout float a, inout float b)
 }
 
 
+float3 EncodeNormal(float3 normal)
+{
+    return normal * 0.5 + 0.5;
+}
+
+float3 DecodeNormal(float3 normal)
+{
+    return normal * 2 - 1;
+}
+
+
 #endif

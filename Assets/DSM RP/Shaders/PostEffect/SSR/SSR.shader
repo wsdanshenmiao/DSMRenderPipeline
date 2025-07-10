@@ -1,8 +1,5 @@
 Shader "DSM RP/SSR"
 {
-    Properties
-    {
-    }
     SubShader
     {
         Cull Off

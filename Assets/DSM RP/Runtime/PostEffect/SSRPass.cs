@@ -8,9 +8,11 @@ using static UnityEngine.GraphicsBuffer;
 
 namespace DSM
 {
-    public class SSRPass : PostEffect
+    public class SSRPass
     {
         private static ProfilingSampler sm_Sampler = new ProfilingSampler("SSR");
+
+        private Material m_Material;
 
         public Material SSRMaterial{
             get{
@@ -22,17 +24,17 @@ namespace DSM
             
         }
 
-        public TextureHandle m_SrcTexture, m_DstTexture, 
+        private TextureHandle m_SrcTexture, m_DstTexture, 
             m_DepthTexture, m_NormalTexture;
-        public TextureHandle[] m_HizTextures;
-        public TextureHandle m_PackageHizTexture;
-        public TextureHandle m_MaskTexture;
+        private TextureHandle[] m_HizTextures;
+        private TextureHandle m_PackageHizTexture;
+        private TextureHandle m_MaskTexture;
 
-        public RendererListHandle m_RenderList;
+        private RendererListHandle m_RenderList;
 
-        public int m_CameraWidth, m_CameraHeight;
+        private int m_CameraWidth, m_CameraHeight;
 
-        public SSRPassSetting m_Setting = null;
+        private SSRPassSetting m_Setting = null;
 
         public static readonly int
             m_RayMarchingMaxCountId = Shader.PropertyToID("_RayMarchingMaxDistance"),
@@ -44,7 +46,8 @@ namespace DSM
             m_HizStartLevelId = Shader.PropertyToID("_HizStartLevel"),
             m_HizEndLevelId = Shader.PropertyToID("_HizEndLevel"),
             m_HizCountId = Shader.PropertyToID("_HizCount"),
-            m_MaskTextureId = Shader.PropertyToID("_MaskTexture");
+            m_MaskTextureId = Shader.PropertyToID("_MaskTexture"),
+            m_HizStrideId = Shader.PropertyToID("_HizStride");
 
         public static readonly Material m_SSRLitMaterial = 
             CoreUtils.CreateEngineMaterial(Shader.Find("DSM RP/SSRLit"));
@@ -55,7 +58,7 @@ namespace DSM
             "SCREENSPACE", "SCREENSPACEHIEZ"
         };
 
-        public override void Render(RenderGraphContext context)
+        public void Render(RenderGraphContext context)
         {
             if(m_Setting == null) return;
             if (m_Setting.m_GenerateHizShader == null) {
@@ -100,6 +103,7 @@ namespace DSM
             SSRMaterial.SetInt(m_HizCountId, (int)m_Setting.m_HizCount);
             SSRMaterial.SetInt(m_HizStartLevelId, (int)Mathf.Min(m_Setting.m_HizStartLevel, m_Setting.m_HizCount));
             SSRMaterial.SetInt(m_HizEndLevelId, (int)Mathf.Min(m_Setting.m_HizEndLevel, m_Setting.m_HizStartLevel));
+            SSRMaterial.SetInt(m_HizStrideId, (int)m_Setting.m_HizStride);
             SSRMaterial.SetInt(m_RayMarchingMaxCountId, m_Setting.m_RayMarchingMaxDistance);
             SSRMaterial.SetFloat(m_RayMarchingStepId, m_Setting.m_RayMarchingStep);
             SSRMaterial.SetFloat(m_HitThresholdId, m_Setting.m_HitThreshold);
@@ -140,16 +144,15 @@ namespace DSM
             pass.m_DepthTexture = ssrBuilder.ReadTexture(cameraTextures.m_DepthTexture);
             pass.m_NormalTexture = ssrBuilder.ReadTexture(cameraTextures.m_NormalTexture);
 
-            // 临时纹理
+            // 遮罩纹理
             TextureDesc texDesc = new TextureDesc(width, height)
             {
                 name = "MaskTexture",
                 format = GraphicsFormat.R8_SNorm,
             };
-
-            // 遮罩纹理
             pass.m_MaskTexture = ssrBuilder.ReadWriteTexture(renderGraph.CreateTexture(texDesc));
 
+            // 临时纹理
             texDesc.format = SystemInfo.GetGraphicsFormat(DefaultFormat.HDR);
             texDesc.name = "TmpTexture";
             pass.m_DstTexture = ssrBuilder.WriteTexture(renderGraph.CreateTexture(texDesc));
