@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: SSR Setting
   m_EditorClassIdentifier: 
   m_Weight: 0
-  m_Enable: 1
+  m_Enable: 0
   m_RayMarchingMaxDistance: 70
   m_RayMarchingStep: 0.1
   m_HitThreshold: 0.2

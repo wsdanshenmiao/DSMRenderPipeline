@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Weight: 1
   m_Enable: 0
-  m_BlurRadius: 5
+  m_BlurRadius: 15
   m_BlurShader: {fileID: 7200000, guid: fccc05313bf34b01b7c6eba52bd29c2f, type: 3}

@@ -165,7 +165,7 @@ float4 SSR2DRayMarching(
             SwapFloat(minZ, maxZ);
         }
         bool inRange = all(0 <= uv && uv <= 1);
-        [flatten]
+        [branch]
         if(!inRange) break;
 
         bool hit = minZ <= sceneZ && maxZ >= sceneZ - _HitThreshold;
