@@ -13,6 +13,7 @@ struct Surface
     float smoothness;
     float depth;
     float dither;
+    float2 screenUV;
 };
 
 #endif

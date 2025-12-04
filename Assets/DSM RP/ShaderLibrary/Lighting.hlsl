@@ -5,6 +5,7 @@
 #include "Light.hlsl"
 #include "BRDF.hlsl"
 #include "GI.hlsl"
+#include "ForwardPlus.hlsl"
 
 float3 IncomingLight(Surface surface, Light light)
 {
@@ -23,10 +24,14 @@ float3 GetLighting(Surface surfaceWS, BRDF brdf, GI gi)
         Light light = GetDirectionalLight(i, surfaceWS, shadowData);
         col += GetLighting(surfaceWS, brdf, light);
     }
-    for(int ii = 0; ii < GetOtherLightCount(); ii++){
-        Light light = GetOtherLight(ii, surfaceWS, shadowData);
+
+    ForwardPlusTile tile = GetForwardPlusTile(surfaceWS.screenUV);
+    for(int ii = 0; ii < tile.GetLightCount(); ii++){
+        int index = tile.GetLightIndex(ii);
+        Light light = GetOtherLight(index, surfaceWS, shadowData);
         col += GetLighting(surfaceWS, brdf, light);
     }
+
     return col;
 }
 

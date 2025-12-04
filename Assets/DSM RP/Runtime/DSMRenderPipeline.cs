@@ -20,7 +20,7 @@ namespace DSM
             m_Settings = settings;
             GraphicsSettings.useScriptableRenderPipelineBatching = settings.m_UseSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
-            m_CameraRenderer = new CameraRenderer();
+            m_CameraRenderer = new CameraRenderer(settings.m_DebugShader);
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -35,6 +35,7 @@ namespace DSM
         {
             base.Dispose(disposing);
             m_RenderGraph.Cleanup();
+            m_CameraRenderer.Dispose();
         }
     }
 }

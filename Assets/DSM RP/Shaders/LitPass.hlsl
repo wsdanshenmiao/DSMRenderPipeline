@@ -64,6 +64,7 @@ float4 LitPassFragment(Varyings i, out float3 normal : SV_TARGET1) : SV_TARGET0
     surface.viewDirection = normalize(_WorldSpaceCameraPos - i.posWS);
     surface.depth = -TransformWorldToView(i.posWS).z;
     surface.dither = InterleavedGradientNoise(i.posCS.xy, 0);
+    surface.screenUV = i.posCS.xy * GetCameraTexInvSize();
 
     normal = EncodeNormal(surface.normal);
 

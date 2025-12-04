@@ -7,6 +7,16 @@ namespace DSM
 {
     public partial class CameraRenderer
     {
+        public CameraRenderer(Shader debugShader)
+        {
+            CameraDebugger.Initialize(debugShader);
+        }
+
+        public void Dispose()
+        {
+            CameraDebugger.Cleanup();
+        }
+
         public void Render(
             RenderGraph renderGraph,
             ScriptableRenderContext context,
@@ -39,12 +49,14 @@ namespace DSM
                 commandBuffer = CommandBufferPool.Get()
             };
 
+            Vector2Int attachmentSize = new Vector2Int(camera.pixelWidth, camera.pixelHeight);
+
             renderGraph.BeginRecording(renderGraphParams);
             using (new RenderGraphProfilingScope(renderGraph, cameraSampler))
             {
                 LightResources lightResources = LightingPass.Record(
                     renderGraph, cullingResults,
-                    shadowSetting, context, settings.m_RenderLayerMask);
+                    shadowSetting, context, attachmentSize, settings.m_RenderLayerMask);
 
                 var cameraRendererTexs = SetupPass.Record(
                     renderGraph, camera, true, true);
@@ -66,6 +78,7 @@ namespace DSM
 
                 FinalPass.Record(renderGraph, cameraRendererTexs);
 
+                DebugPass.Record(renderGraph, settings, camera, lightResources);
                 GizmosPass.Record(renderGraph, camera, cameraRendererTexs);
             }
             renderGraph.EndRecordingAndExecute();

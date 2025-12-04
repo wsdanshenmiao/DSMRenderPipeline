@@ -90,6 +90,11 @@ float GetCameraTexHeight()
     return _ScreenParams.y;
 }
 
+float2 GetCameraTexSize()
+{
+    return _ScreenParams.xy;
+}
+
 float GetCameraTexInvWidth()
 {
     return _ScreenParams.z - 1;
@@ -98,6 +103,11 @@ float GetCameraTexInvWidth()
 float GetCameraTexInvHeight()
 {
     return _ScreenParams.w - 1;
+}
+
+float2 GetCameraTexInvSize()
+{
+    return _ScreenParams.zw - 1;
 }
 
 float3 GetCameraPos()

@@ -16,5 +16,7 @@ namespace DSM {
         public PostEffectManager m_PostEffectManager = new PostEffectManager();
 
         public RenderingLayerMask m_RenderLayerMask = RenderingLayerMask.defaultRenderingLayerMask;
+
+        public Shader m_DebugShader;
     }
 }

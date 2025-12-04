@@ -1,8 +1,6 @@
 #ifndef __POSTEFFECTCOMMON_HLSL__
 #define __POSTEFFECTCOMMON_HLSL__
 
-CBUFFER_START(_POST_EFFECT)
-CBUFFER_END
 
 struct Ray
 {
@@ -17,12 +15,12 @@ struct Varyings
 };
 
 /*
- *  1
+ *  2
  *  |\
  *  | \
  *  |  \
  *  |___ \
- *  0       2
+ *  0       1
  */
 // 覆盖全屏的三角形
 Varyings DefaultPostEffectVertex(uint vertexID : SV_VertexID)

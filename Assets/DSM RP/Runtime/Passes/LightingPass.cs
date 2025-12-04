@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.RenderGraphModule;
@@ -9,10 +11,13 @@ namespace DSM {
     public readonly ref struct LightResources
     {
         public readonly ShadowResources m_ShadowResources;
+        public readonly BufferHandle m_TileLightIndicesBuffer;
 
-        public LightResources(ShadowResources shadowResources)
+        public LightResources(ShadowResources shadowResources, 
+            BufferHandle tileLightIndicesBuffer)
         {
             m_ShadowResources = shadowResources;
+            m_TileLightIndicesBuffer = tileLightIndicesBuffer;
         }
     }
 
@@ -84,6 +89,20 @@ namespace DSM {
         private BufferHandle m_DirLightDataBuffer;
         private BufferHandle m_OtherLightDataBuffer;
 
+        // Forward+ data
+        private const int m_MaxLightPreTile = 31;
+        private const int m_MaxTileDataSize = m_MaxLightPreTile + 1;
+        private int m_TileDataSize; // 第一个元素存储每个瓦片的光源数量
+        private const int m_TileScreenPixelSize = 64; // 每个瓦片覆盖的屏幕像素大小
+        private Vector2Int m_TileSize;
+        private int TileCount => m_TileSize.x * m_TileSize.y;
+        private Vector2 m_ScreenUVToTileCoordinates;
+        private BufferHandle m_TileLightIndicesBuffer;
+        private float4[] m_LightBounds = new float4[m_MaxOtherLightCount];  // 光照范围
+        private int[] m_TileBufferData;
+
+
+        // Shader hash IDs
         static readonly private int
             m_DirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),
             m_DirLightDataId = Shader.PropertyToID("_DirectionalLightDatas");
@@ -92,17 +111,29 @@ namespace DSM {
             m_OtherLightCountId = Shader.PropertyToID("_OtherLightCount"),
             m_OtherLightDatasId = Shader.PropertyToID("_OtherLightDatas");
 
-        static private DirectionalLightData[] m_DirLightDatas = new DirectionalLightData[m_MaxDirLightCount];
+        static readonly private int
+            m_TileLightIndicesId = Shader.PropertyToID("_TileLightIndices"),
+            m_TileSettingId = Shader.PropertyToID("_TileSettings");
 
+        static private DirectionalLightData[] m_DirLightDatas = new DirectionalLightData[m_MaxDirLightCount];
         static private OtherLightData[] m_OtherLightDatas = new OtherLightData[m_MaxOtherLightCount];
 
         private void Setup(
             CullingResults cullingResults,
             ShadowSetting shadowSetting,
+            Vector2Int attachmentSize,
             uint renderLayerMask)
         {
             m_CullingResults = cullingResults;
             m_Shadows.Setup(cullingResults, shadowSetting);
+            
+            m_ScreenUVToTileCoordinates = new Vector2(
+                attachmentSize.x / (float)m_TileScreenPixelSize,
+                attachmentSize.y / (float)m_TileScreenPixelSize);
+            m_TileSize = new Vector2Int(
+                Mathf.CeilToInt(m_ScreenUVToTileCoordinates.x),
+                Mathf.CeilToInt(m_ScreenUVToTileCoordinates.y));
+
             SetupLights(renderLayerMask);
         }
 
@@ -120,19 +151,69 @@ namespace DSM {
                 switch (visibleLight.lightType)
                 {
                     case LightType.Directional:
-                        m_DirLightDatas[m_DirLightCount++] = new DirectionalLightData(
-                            ref visibleLight, m_Shadows.ReserveDirectionalShadows(light, index));
+                    {
+                        if(m_DirLightCount < m_MaxDirLightCount)
+                        {
+                            m_DirLightDatas[m_DirLightCount++] = new DirectionalLightData(
+                                ref visibleLight, m_Shadows.ReserveDirectionalShadows(light, index));   
+                        }
                         break;
+                    }
                     case LightType.Point:
-                        m_OtherLightDatas[m_OtherLightCount++] = OtherLightData.CreatePointLight(
-                            ref visibleLight, Vector4.zero);
+                    {
+                        if (m_OtherLightCount < m_MaxOtherLightCount)
+                        {
+                            Rect rect = visibleLight.screenRect;
+                            m_LightBounds[m_OtherLightCount] = new float4(
+                                rect.xMin, rect.yMin, rect.xMax, rect.yMax);
+                            m_OtherLightDatas[m_OtherLightCount++] = OtherLightData.CreatePointLight(
+                                ref visibleLight, Vector4.zero);
+                        }
                         break;
+                    }
                     case LightType.Spot:
-                        m_OtherLightDatas[m_OtherLightCount++] = OtherLightData.CreateSpotLight(
-                            ref visibleLight, Vector4.zero);
+                    {
+                        if(m_OtherLightCount < m_MaxOtherLightCount)
+                        {
+                            Rect rect = visibleLight.screenRect;
+                            m_LightBounds[m_OtherLightCount] = new float4(
+                                rect.xMin, rect.yMin, rect.xMax, rect.yMax);
+                            m_OtherLightDatas[m_OtherLightCount++] = OtherLightData.CreateSpotLight(
+                                ref visibleLight, Vector4.zero);
+                        }
                         break;
+                    }
                     default: break;
                 }
+            }
+
+            int requiredMaxLightPreTile = Mathf.Min(m_MaxLightPreTile, visibleLights.Length);
+            m_TileDataSize = requiredMaxLightPreTile + 1;
+            m_TileBufferData = new int[m_TileDataSize * TileCount];
+            float2 tileScreenSize = new Vector2(1, 1) / m_ScreenUVToTileCoordinates;
+            for(int tileIndex = 0; tileIndex < TileCount; ++tileIndex)
+            {
+                int x = tileIndex % m_TileSize.x;
+                int y = tileIndex / m_TileSize.x;
+                float4 bound = new float4(x, y, x + 1, y + 1) * tileScreenSize.xyxy;
+
+                int start = tileIndex * m_TileDataSize;
+                int offset = start;
+                int lightCount = 0; // 当前 tile 内的光源数量
+                for(int i = 0; i < m_OtherLightCount; i++)
+                {
+                    float4 lightBound = m_LightBounds[i];
+                    // 判断是否在边界内
+                    if(math.all(new float4(lightBound.xy, bound.xy) <= new float4(bound.zw, lightBound.zw)))
+                    {
+                        m_TileBufferData[++offset] = i;
+                        if(++lightCount >= requiredMaxLightPreTile)
+                        {
+                            break;
+                        }
+                    }
+                }
+                m_TileBufferData[start] = lightCount;
             }
         }
 
@@ -140,7 +221,6 @@ namespace DSM {
         private void Render(RenderGraphContext context)
         {
             CommandBuffer cmd = context.cmd;
-            ScriptableRenderContext renderContext = context.renderContext;
 
             m_Shadows.Render(context);
 
@@ -149,10 +229,18 @@ namespace DSM {
                 cmd.SetBufferData(m_DirLightDataBuffer, m_DirLightDatas);
                 cmd.SetGlobalBuffer(m_DirLightDataId, m_DirLightDataBuffer);
             }
+
             cmd.SetGlobalInt(m_OtherLightCountId, m_OtherLightCount);
-            if (m_OtherLightCountId > 0) {
+            if (m_OtherLightCount > 0) {
                 cmd.SetBufferData(m_OtherLightDataBuffer, m_OtherLightDatas);
                 cmd.SetGlobalBuffer(m_OtherLightDatasId, m_OtherLightDataBuffer);
+
+                cmd.SetGlobalVector(m_TileSettingId, new Vector4(
+                    m_ScreenUVToTileCoordinates.x,
+                    m_ScreenUVToTileCoordinates.y,
+                    m_TileSize.x, m_TileDataSize));
+                cmd.SetBufferData(m_TileLightIndicesBuffer, m_TileBufferData);
+                cmd.SetGlobalBuffer(m_TileLightIndicesId, m_TileLightIndicesBuffer);
             }
 
             context.renderContext.ExecuteCommandBuffer(cmd);
@@ -165,11 +253,12 @@ namespace DSM {
             CullingResults cullingResults,
             ShadowSetting shadowSetting,
             ScriptableRenderContext renderContext,
+            Vector2Int attachmentSize,
             uint renderLayerMask)
         {
             using RenderGraphBuilder builder = renderGraph.AddRenderPass(
                 sm_Sampler.name, out LightingPass pass, sm_Sampler);
-            pass.Setup(cullingResults, shadowSetting, renderLayerMask);
+            pass.Setup(cullingResults, shadowSetting, attachmentSize, renderLayerMask);
 
             // 创建光照数据的结构缓冲区
             pass.m_DirLightDataBuffer = renderGraph.CreateBuffer(
@@ -182,16 +271,25 @@ namespace DSM {
                 {
                     name = "Other Light Data Buffer"
                 });
+            pass.m_TileLightIndicesBuffer = renderGraph.CreateBuffer(
+                new BufferDesc(1, sizeof(uint))
+                {
+                    name = "Tile Light Indices Buffer",
+                    count = pass.TileCount * m_MaxTileDataSize,
+                    stride = 4
+                });
 
             builder.WriteBuffer(pass.m_DirLightDataBuffer);
             builder.WriteBuffer(pass.m_OtherLightDataBuffer);
+            builder.WriteBuffer(pass.m_TileLightIndicesBuffer);
 
             builder.SetRenderFunc<LightingPass>(
                 static (pass, context) => pass.Render(context));
             builder.AllowPassCulling(false);
 
             return new LightResources(
-                pass.m_Shadows.GetResources(renderGraph, builder, renderContext));
+                pass.m_Shadows.GetResources(renderGraph, builder, renderContext),
+                pass.m_TileLightIndicesBuffer);
         }
     }
 }

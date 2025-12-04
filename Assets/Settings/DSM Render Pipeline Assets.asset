@@ -36,3 +36,4 @@ MonoBehaviour:
     m_RenderLayerMask:
       serializedVersion: 0
       m_Bits: 4294967295
+    m_DebugShader: {fileID: 4800000, guid: 869492e0188b1f44ebf08d5519245f81, type: 3}
