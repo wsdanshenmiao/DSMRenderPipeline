@@ -90,8 +90,8 @@ namespace DSM {
         private BufferHandle m_OtherLightDataBuffer;
 
         // Forward+ data
-        private const int m_MaxLightPreTile = 31;
-        private const int m_MaxTileDataSize = m_MaxLightPreTile + 1;
+        private int m_MaxLightPreTile;
+        private int m_MaxTileDataSize;
         private int m_TileDataSize; // 第一个元素存储每个瓦片的光源数量
         private const int m_TileScreenPixelSize = 64; // 每个瓦片覆盖的屏幕像素大小
         private Vector2Int m_TileSize;
@@ -121,15 +121,21 @@ namespace DSM {
         private void Setup(
             CullingResults cullingResults,
             ShadowSetting shadowSetting,
+            ForwardPlusSettings forwardPlusSettings,
             Vector2Int attachmentSize,
             uint renderLayerMask)
         {
             m_CullingResults = cullingResults;
             m_Shadows.Setup(cullingResults, shadowSetting);
             
+            m_MaxLightPreTile = forwardPlusSettings.m_MaxLightsPerTile <= 0 ?
+                31 : forwardPlusSettings.m_MaxLightsPerTile;
+            m_MaxTileDataSize = m_MaxLightPreTile + 1;
+            float tileScreenPixelSize = forwardPlusSettings.m_TileSize <= 0 ? 
+                64 : (float)forwardPlusSettings.m_TileSize;
             m_ScreenUVToTileCoordinates = new Vector2(
-                attachmentSize.x / (float)m_TileScreenPixelSize,
-                attachmentSize.y / (float)m_TileScreenPixelSize);
+                attachmentSize.x / tileScreenPixelSize,
+                attachmentSize.y / tileScreenPixelSize);
             m_TileSize = new Vector2Int(
                 Mathf.CeilToInt(m_ScreenUVToTileCoordinates.x),
                 Mathf.CeilToInt(m_ScreenUVToTileCoordinates.y));
@@ -252,13 +258,14 @@ namespace DSM {
             RenderGraph renderGraph,
             CullingResults cullingResults,
             ShadowSetting shadowSetting,
+            ForwardPlusSettings forwardPlusSettings,
             ScriptableRenderContext renderContext,
             Vector2Int attachmentSize,
             uint renderLayerMask)
         {
             using RenderGraphBuilder builder = renderGraph.AddRenderPass(
                 sm_Sampler.name, out LightingPass pass, sm_Sampler);
-            pass.Setup(cullingResults, shadowSetting, attachmentSize, renderLayerMask);
+            pass.Setup(cullingResults, shadowSetting, forwardPlusSettings, attachmentSize, renderLayerMask);
 
             // 创建光照数据的结构缓冲区
             pass.m_DirLightDataBuffer = renderGraph.CreateBuffer(
@@ -275,7 +282,7 @@ namespace DSM {
                 new BufferDesc(1, sizeof(uint))
                 {
                     name = "Tile Light Indices Buffer",
-                    count = pass.TileCount * m_MaxTileDataSize,
+                    count = pass.TileCount * pass.m_MaxTileDataSize,
                     stride = 4
                 });
 

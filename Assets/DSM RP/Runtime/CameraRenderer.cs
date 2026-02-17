@@ -32,10 +32,10 @@ namespace DSM
             ShadowSetting shadowSetting = settings.m_ShadowSetting;
             RenderingLayerMask renderingLayerMask = settings.m_RenderLayerMask;
 
-            if (!camera.TryGetCullingParameters(
-                out ScriptableCullingParameters cullingParameters)) return;
-            cullingParameters.shadowDistance = Mathf.Min(
-                camera.farClipPlane, shadowSetting.m_MaxDistance);
+            if (!camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters)) 
+                return;
+
+            cullingParameters.shadowDistance = Mathf.Min(camera.farClipPlane, shadowSetting.m_MaxDistance);
             CullingResults cullingResults = context.Cull(ref cullingParameters);
 
             ProfilingSampler cameraSampler = ProfilingSampler.Get(camera.cameraType);
@@ -56,7 +56,8 @@ namespace DSM
             {
                 LightResources lightResources = LightingPass.Record(
                     renderGraph, cullingResults,
-                    shadowSetting, context, attachmentSize, settings.m_RenderLayerMask);
+                    shadowSetting, settings.m_ForwardPlusSettings,
+                    context, attachmentSize, settings.m_RenderLayerMask);
 
                 var cameraRendererTexs = SetupPass.Record(
                     renderGraph, camera, true, true);

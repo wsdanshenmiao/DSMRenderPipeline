@@ -1,4 +1,3 @@
-using UnityEditor;
 using UnityEngine;
 
 namespace DSM {
@@ -12,6 +11,8 @@ namespace DSM {
             m_UseSRPBatcher = true;
 
         public ShadowSetting m_ShadowSetting = default;
+
+        public ForwardPlusSettings m_ForwardPlusSettings = default;
 
         public PostEffectManager m_PostEffectManager = new PostEffectManager();
 
