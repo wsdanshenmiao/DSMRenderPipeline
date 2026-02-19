@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework.Internal;
 using UniHumanoid;
 using UnityEngine;
@@ -7,15 +8,35 @@ using UnityEngine.SceneManagement;
 
 namespace DSM
 {
+    public static class BoundsExtension
+    {
+        public static float Area(this Bounds bounds)
+        {
+            Vector3 size = bounds.size;
+            return (size.x * size.y + size.y * size.z + size.z * size.x) * 2;
+        }
+
+        public static bool Contains(this Bounds a, Bounds b)
+        {
+            return a.Contains(b.min) && a.Contains(b.max);
+        }
+
+        public static Bounds Union(this Bounds a, Bounds b)
+        {
+            Bounds result = new Bounds(a.center, a.size);
+            result.Encapsulate(b);
+            return result;
+        }
+    }
+
     public class BoundingBoxManager : MonoBehaviour
     {
-        private BVH m_BVH;
-        private Dictionary<Renderer, BVH> m_BVHMap;
+        private BVHTree m_BVH;
+        private Dictionary<Renderer, BVHTree.BVHNode> m_BVHMap;
 
         private void BuildSceneBounds()
         {
             List<Renderer> worldRenderer = new();
-            m_BVHMap = new();
             
             // 获取场景中所有物体的包围盒
             for(int i = 0; i < SceneManager.sceneCount; ++i)
@@ -30,27 +51,7 @@ namespace DSM
             }
 
             // 为包围盒构建层次包围盒
-            m_BVH = new BVH(worldRenderer);
-
-            // 构建物体到BVH节点的映射
-            Stack<BVH> stack = new();
-            stack.Push(m_BVH);
-            while(stack.Count > 0)
-            {
-                BVH node = stack.Pop();
-                if(node == null)
-                    continue;
-
-                if(node.renderer != null)
-                {
-                    m_BVHMap[node.renderer] = node;
-                }
-                if(node.left != null || node.right != null)
-                {
-                    stack.Push(node.left);
-                    stack.Push(node.right);
-                }
-            }
+            m_BVH = new BVHTree(worldRenderer);
         }
 
         private void Update()
@@ -71,36 +72,37 @@ namespace DSM
                 }
             }
 
-            Dictionary<Renderer, BVH> newBVHMap = new();
+            var leafNodes = m_BVH.GetLeafNodes().ToLookup(a => a.renderer);
+            // 用存储新的BVH节点，方便后续删除已经被销毁的物体的包围盒节点
+            var newBVHMap = leafNodes.ToDictionary(a => a.Key, a => a.ToList());
             foreach (var renderer in worldRenderer)
             {
-                if (!m_BVHMap.ContainsKey(renderer))
+                if (!leafNodes.Contains(renderer))
                 {
-                    // 插入新物体的包围盒
-                    newBVHMap[renderer] = m_BVH.InsertNode(renderer);
-                }
-                else if(renderer.bounds != m_BVHMap[renderer].bounds)
-                {
-                    // 更新节点的包围盒
-                    // 删除映射表中的节点以便最后删除移除的物品的节点
-                    m_BVHMap.Remove(renderer);
-                    m_BVH.RemoveNode(renderer);
-                    newBVHMap[renderer] = m_BVH.InsertNode(renderer);
+                    m_BVH.InsertNode(renderer);
                 }
                 else
                 {
-                    newBVHMap[renderer] = m_BVHMap[renderer];
-                    m_BVHMap.Remove(renderer);
+                    foreach(var node in leafNodes[renderer])
+                    {
+                        if(node.bounds != renderer.bounds)
+                        {
+                            m_BVH.RemoveNode(node);
+                            m_BVH.InsertNode(renderer);
+                        }
+                    }
+                    newBVHMap.Remove(renderer);
                 }
             }
 
-            // 删除移除的物品的节点
-            foreach(var node in m_BVHMap.Values)
+            // 删除已经被销毁的物体的包围盒节点
+            foreach(var group in newBVHMap)
             {
-                m_BVH.RemoveNode(node);
+                foreach(var node in group.Value)
+                {
+                    m_BVH.RemoveNode(node);
+                }
             }
-
-            m_BVHMap = newBVHMap;
         }
 
         private void OnDrawGizmos()
@@ -110,12 +112,12 @@ namespace DSM
                 BuildSceneBounds();
             }
 
-            Stack<Tuple<BVH, int>> stack = new();
-            stack.Push(new Tuple<BVH, int>(m_BVH, 0));
+            Stack<Tuple<BVHTree.BVHNode, int>> stack = new();
+            stack.Push(new Tuple<BVHTree.BVHNode, int>(m_BVH.GetRoot(), 0));
             while(stack.Count > 0)
             {
                 var tuple = stack.Pop();
-                BVH node = tuple.Item1;
+                BVHTree.BVHNode node = tuple.Item1;
                 int depth = tuple.Item2;
                 if(node == null)
                     continue;
@@ -126,8 +128,8 @@ namespace DSM
                 Gizmos.DrawWireCube(node.bounds.center, node.bounds.size);
                 if(node.left != null || node.right != null)
                 {
-                    stack.Push(new Tuple<BVH, int>(node.left, depth + 1));
-                    stack.Push(new Tuple<BVH, int>(node.right, depth + 1));
+                    stack.Push(new Tuple<BVHTree.BVHNode, int>(node.left, depth + 1));
+                    stack.Push(new Tuple<BVHTree.BVHNode, int>(node.right, depth + 1));
                 }
             }
         }

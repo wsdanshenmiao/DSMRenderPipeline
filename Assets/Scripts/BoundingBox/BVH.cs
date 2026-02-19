@@ -1,82 +1,81 @@
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using NUnit.Framework;
-using UniHumanoid;
-using UnityEditor.Experimental.GraphView;
+using System.Linq;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace DSM
 {    
-    class BVH
+    public class BVHTree
     {
-        private Bounds m_Bounds;
-        private Renderer m_Renderer;
-        private BVH m_Left;
-        private BVH m_Right;
-        private BVH m_Parent;
-
-        public Bounds bounds => m_Bounds;
-        public Renderer renderer => m_Renderer;
-        public BVH left => m_Left;
-        public BVH right => m_Right;
-        public BVH parent => m_Parent;
-
-        private BVH() { }
-        private BVH(BVH other)
+        public class BVHNode
         {
-            m_Bounds = other.m_Bounds;
-            m_Renderer = other.m_Renderer;
-            m_Left = other.m_Left;
-            m_Right = other.m_Right;
-            m_Parent = other.m_Parent;
+            public Bounds bounds;
+            public Renderer renderer;
+            public BVHNode left;
+            public BVHNode right;
+            public BVHNode parent;
+            
+            public BVHNode() { }
+            public BVHNode(BVHNode other)
+            {
+                bounds = other.bounds;
+                renderer = other.renderer;
+                left = other.left;
+                right = other.right;
+                parent = other.parent;
+            }
+
+            public void UpdateBounds()
+            {
+                if (left != null && right != null)
+                {
+                    bounds = left.bounds;
+                    bounds.Encapsulate(right.bounds);
+                }
+                // 更新父节点的包围盒
+                parent?.UpdateBounds();
+            }
         }
 
-        public BVH(List<Renderer> renderers)
+        private BVHNode m_Root = null;
+        private List<BVHNode> m_LeafNodes = new();
+
+        public BVHTree(List<Renderer> renderers)
         {
-            if(renderers.Count <= 0)
+            if (renderers.Count <= 0)
                 return;
 
-            m_Bounds = new Bounds(renderers[0].bounds.center, renderers[0].bounds.size);
-            // 创建当前节点的包围盒
             foreach(var renderer in renderers)
             {
-                m_Bounds.Encapsulate(renderer.bounds);
-            }
-            // 获取最长边的索引
-            Vector3 size = m_Bounds.size;
-            int longestAxis = size.x > size.y ? 0 : 1;
-            longestAxis = size[longestAxis] > size.z ? longestAxis : 2;
-
-            if(renderers.Count == 1)
-            {
-                m_Renderer = renderers[0];
-                m_Left = m_Right = null;
-            }
-            else
-            {
-                renderers.Sort((l, r) => { return l.bounds.min[longestAxis].CompareTo(r.bounds.min[longestAxis]); });
-                int mid = renderers.Count / 2;
-                m_Left = new BVH(renderers.GetRange(0, mid));
-                m_Left.m_Parent = this;
-                m_Right = new BVH(renderers.GetRange(mid, renderers.Count - mid));
-                m_Right.m_Parent = this;
+                InsertNode(renderer);
             }
         }
 
-        public BVH FindNode(Renderer _renderer)
+        public BVHNode GetRoot()
         {
-            if(m_Renderer == _renderer)
-                return this;
+            return m_Root;
+        }
 
-            BVH root = FindRoot();
-            Stack<BVH> stack = new();
-            stack.Push(root);
+        public List<BVHNode> GetLeafNodes()
+        {
+            return m_LeafNodes;
+        }
+
+        public BVHNode FindNode(Renderer renderer)
+        {
+            if (renderer == null || m_Root == null)
+                return null;
+
+            Stack<BVHNode> stack = new();
+            stack.Push(m_Root);
             while(stack.Count > 0)
             {
-                BVH node = stack.Pop();
+                BVHNode node = stack.Pop();
                 if(node == null)
                     continue;
-                if (node.renderer == _renderer)
+                if (node.renderer == renderer)
                     return node;
 
                 if(node.left != null && node.right != null)
@@ -89,115 +88,130 @@ namespace DSM
             return null;
         }
 
-        public BVH FindRoot()
+        public BVHNode InsertNode(Renderer renderer)
         {
-            BVH root = this;
-            while(root.parent != null)
-            {
-                root = root.parent;
-            }
-            return root;
-        }
-
-        public BVH InsertNode(Renderer _renderer)
-        {
-            if(_renderer == null)
+            if (renderer == null)
                 return null;
 
-            BVH root = FindRoot();
-            if(root == null)
-                return null;
-
-            Func<Bounds, int> getLongestAxis = bounds =>
+            // 搜索合适的插入位置
+            BVHNode sibling = FindBestNode(renderer);
+            if (sibling == null)
             {
-                int longestAxis = bounds.size.x > bounds.size.y ? 0 : 1;
-                return bounds.size[longestAxis] > bounds.size.z ? longestAxis : 2;
-            };
-
-            BVH node = root;
-            while(node.left != null && node.right != null)
-            {
-                // 若为内部节点，则递归插入到合适的子节点中
-                int longest = getLongestAxis(node.bounds);
-                node = _renderer.bounds.min[longest] < node.right.bounds.min[longest] ?
-                    node.left : node.right;
+                m_Root = new BVHNode();
+                m_Root.renderer = renderer;
+                m_Root.bounds = renderer.bounds;
+                m_LeafNodes.Add(m_Root);
+                return m_Root;
             }
 
-            // 若为叶子节点则创建新节点并合并
-            BVH newNode = new BVH();
-            newNode.m_Renderer = _renderer;
-            newNode.m_Bounds = _renderer.bounds;
+            // 创建新的父节点并插入新的节点
+            BVHNode newNode = new BVHNode();
+            newNode.renderer = renderer;
+            newNode.bounds = renderer.bounds;
 
-            BVH mergeNode = new BVH();
-            mergeNode.m_Parent = node.parent;
-            // 更新父节点的子节点
-            if(node.parent != null)
+            BVHNode oldParent = sibling.parent;
+            BVHNode newParent = new BVHNode();
+            newParent.parent = oldParent;
+
+            if (oldParent != null)
             {
-                if(node.parent.left == node)
-                    node.parent.m_Left = mergeNode;
+                // 更新父节点的子节点
+                if (oldParent.left == sibling)
+                    oldParent.left = newParent;
                 else
-                    node.parent.m_Right = mergeNode;
+                    oldParent.right = newParent;
+            }
+            else
+            {
+                m_Root = newParent;
             }
 
-            // 更新叶子节点的父节点
-            node.m_Parent = mergeNode;
-            newNode.m_Parent = mergeNode;
+            newParent.left = sibling;
+            newParent.right = newNode;
+            sibling.parent = newParent;
+            newNode.parent = newParent;
 
-            // 根据最长轴分割并更新包围盒
-            int longestAxis = getLongestAxis(node.bounds);
-            bool isLeft = newNode.bounds.min[longestAxis] < node.bounds.center[longestAxis];
-            mergeNode.m_Left = isLeft ? newNode : node;
-            mergeNode.m_Right = isLeft ? node : newNode;
-            mergeNode.UpdateBounds();
+            // 更新插入节点的祖先节点
+            newNode.UpdateBounds();
 
+            // 将叶子节点插入到链表中
+            m_LeafNodes.Add(newNode);
             return newNode;
         }
 
-        public BVH RemoveNode(BVH node)
+        public void RemoveNode(BVHNode node)
         {
             if(node == null)
-                return FindRoot();
+                return;
 
             Assert.IsNull(node.left);
             Assert.IsNull(node.right);
 
             var nodeParent = node.parent;
             if (nodeParent == null)
-                return null;
+            {
+                m_Root = null;
+                return;
+            }
 
             Assert.IsTrue(nodeParent.left == node || nodeParent.right == node);
-            BVH otherChild = nodeParent.left == node ?
+            BVHNode otherChild = nodeParent.left == node ?
                 node.parent.right : nodeParent.left;
-            otherChild.m_Parent = nodeParent.parent;
+            otherChild.parent = nodeParent.parent;
             if (nodeParent.parent != null)
             {
                 if (nodeParent.parent.left == nodeParent)
-                    nodeParent.parent.m_Left = otherChild;
+                    nodeParent.parent.left = otherChild;
                 else
-                    nodeParent.parent.m_Right = otherChild;
+                    nodeParent.parent.right = otherChild;
             }
-            otherChild.UpdateBounds();
-
-            return FindRoot();
-        }
-
-        public BVH RemoveNode(Renderer _renderer)
-        {
-            if(_renderer == null)
-                return null;
-            BVH node = FindNode(_renderer);
-            return RemoveNode(node);
-        }
-
-        private void UpdateBounds()
-        {
-            if (m_Left != null && m_Right != null)
+            else
             {
-                m_Bounds = m_Left.bounds;
-                m_Bounds.Encapsulate(m_Right.bounds);
+                m_Root = otherChild;
             }
-            // 更新父节点的包围盒
-            parent?.UpdateBounds();
+                otherChild.UpdateBounds();
+
+            // 从链表中移除叶子节点
+            m_LeafNodes.Remove(node);
+        }
+
+        public void RemoveNode(Renderer renderer)
+        {
+            if(renderer != null)
+            {
+                BVHNode node = FindNode(renderer);
+                RemoveNode(node);
+            }
+        }
+
+        /// <summary>
+        /// 使用表面启发式算法查找最佳的插入点
+        /// </summary>
+        private BVHNode FindBestNode(Renderer renderer)
+        {
+            float bestCost = float.MaxValue;
+            BVHNode sibling = null;
+            foreach(var node in m_LeafNodes)
+            {
+                Assert.IsNotNull(node);
+
+                // 插入一个节点的开销为合并后包围盒的面积及所有祖先节点的面积增量
+                float cost = node.bounds.Union(renderer.bounds).Area();
+                BVHNode parent = node.parent;
+                for (; parent != null && cost < bestCost; parent = parent.parent)
+                {
+                    Bounds newBounds = parent.bounds.Union(renderer.bounds);
+                    cost += newBounds.Area() - parent.bounds.Area();
+                }
+
+                if (cost < bestCost && parent == null)
+                {
+                    bestCost = cost;
+                    sibling = node;
+                }
+            }
+
+            return sibling;
         }
     }
 }
