@@ -1,9 +1,8 @@
 using NUnit.Framework;
+using NUnit.Framework.Interfaces;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 namespace DSM
 {    
@@ -16,6 +15,7 @@ namespace DSM
             public BVHNode left;
             public BVHNode right;
             public BVHNode parent;
+            public int height;
             
             public BVHNode() { }
             public BVHNode(BVHNode other)
@@ -25,17 +25,35 @@ namespace DSM
                 left = other.left;
                 right = other.right;
                 parent = other.parent;
+                height = other.height;
             }
 
             public void UpdateBounds()
             {
-                if (left != null && right != null)
+                for(BVHNode node = this; node != null; node = node.parent)
                 {
-                    bounds = left.bounds;
-                    bounds.Encapsulate(right.bounds);
+                    if(node.left != null && node.right != null)
+                    {
+                        node.bounds = node.left.bounds.Union(node.right.bounds);
+                    }
                 }
-                // 更新父节点的包围盒
-                parent?.UpdateBounds();
+            }
+
+            public void UpdateHeight()
+            {
+                Func<BVHNode, int> getHeight = (node) => node != null && node.left != null && node.right != null ?
+                    Mathf.Max(node.left.height, node.right.height) + 1 : 0;
+                height = getHeight(this);
+                int preHeight = height;
+                for (BVHNode node = parent; node != null && preHeight != (node.height - 1); node = node.parent)
+                {
+                    preHeight = node.height = getHeight(node);
+                }
+            }
+
+            public int BalanceFactor()
+            {
+                return (left != null ? left.height : 0) - (right != null ? right.height : 0);
             }
         }
 
@@ -63,6 +81,8 @@ namespace DSM
             return m_LeafNodes;
         }
 
+
+
         public BVHNode FindNode(Renderer renderer)
         {
             if (renderer == null || m_Root == null)
@@ -78,11 +98,10 @@ namespace DSM
                 if (node.renderer == renderer)
                     return node;
 
-                if(node.left != null && node.right != null)
-                {
+                if(node.left != null)
                     stack.Push(node.left);
+                if(node.right != null)
                     stack.Push(node.right);
-                }
             }
 
             return null;
@@ -133,9 +152,12 @@ namespace DSM
 
             // 更新插入节点的祖先节点
             newNode.UpdateBounds();
+            newNode.UpdateHeight();
 
             // 将叶子节点插入到链表中
             m_LeafNodes.Add(newNode);
+
+            Balance(newParent);
             return newNode;
         }
 
@@ -169,10 +191,13 @@ namespace DSM
             {
                 m_Root = otherChild;
             }
-                otherChild.UpdateBounds();
+            otherChild.UpdateBounds();
+            otherChild.UpdateHeight();
 
             // 从链表中移除叶子节点
             m_LeafNodes.Remove(node);
+
+            Balance(nodeParent);
         }
 
         public void RemoveNode(Renderer renderer)
@@ -200,6 +225,7 @@ namespace DSM
                 BVHNode parent = node.parent;
                 for (; parent != null && cost < bestCost; parent = parent.parent)
                 {
+                    // 累加父节点的面积增量
                     Bounds newBounds = parent.bounds.Union(renderer.bounds);
                     cost += newBounds.Area() - parent.bounds.Area();
                 }
@@ -212,6 +238,87 @@ namespace DSM
             }
 
             return sibling;
+        }
+
+        private BVHNode Rotate(BVHNode node, bool isRight)
+        {
+            if (node == null)
+                return null;
+
+            BVHNode newRoot = isRight ? node.left : node.right;
+            if (newRoot == null)
+                return null;
+
+            newRoot.parent = node.parent;
+            if (node.parent != null)
+            {
+                if (node.parent.left == node)
+                    node.parent.left = newRoot;
+                else
+                    node.parent.right = newRoot;
+            }
+            else
+            {
+                m_Root = newRoot;
+            }
+
+            BVHNode moveNode = isRight ? newRoot.right : newRoot.left;
+            if (isRight)
+            {
+                newRoot.right = node;
+                node.left = moveNode;
+            }
+            else
+            {
+                newRoot.left = node;
+                node.right = moveNode;
+            }
+            node.parent = newRoot;
+            moveNode.parent = node;
+
+            node.UpdateHeight();
+            node.UpdateBounds();
+            return newRoot;
+        }
+
+        /// <summary>
+        /// 树的右旋
+        /// </summary>
+        public BVHNode RotateRight(BVHNode node)
+        {
+            return Rotate(node, true);
+        }
+
+        /// <summary>
+        /// 树的左旋
+        /// </summary>
+        public BVHNode RotateLeft(BVHNode node)
+        {
+            return Rotate(node, false);
+        }
+
+        public void Balance(BVHNode node)
+        {
+            if (node == null) 
+                return;
+            int factor = node.BalanceFactor();
+            BVHNode newRoot = node;
+            // 左重
+            if (factor > 1)
+            {
+                if (node.left != null && node.left.BalanceFactor() < 0)
+                    node.left = RotateLeft(node.left);  // LR
+                newRoot = RotateRight(node);
+            }
+            else if (factor < -1)   // 右重
+            {
+                if (node.right != null && node.right.BalanceFactor() > 0)
+                    node.right = RotateRight(node.right);    // RL
+                newRoot = RotateLeft(node);
+            }
+
+            if (newRoot.parent != null)
+                Balance(newRoot.parent);
         }
     }
 }
